@@ -52,8 +52,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     reader = MapReader,
     fnc = LowerCase.delimitedBy(Underscore),
     thns = SamePackageTypeHintNamingStrategy,
-    layout = FlatLayout("__"),
-    thl = NearTypeHintLocation(List("type"))
+    layout = FlatLayout("__")
   )
 
   def create[T <: Entity](obj: T)(implicit dummy: DummyImplicit) {
@@ -92,7 +91,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     // get the auto-generated id
     val rs = stmt.getGeneratedKeys
     rs.next()
-    entity.read(List(entity.id), rs, ResultSetParams)
+    xtract.read.reado(List(entity.id), rs, ResultSetParams)
     rs.close()
 
     stmt.close()
@@ -115,7 +114,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     val rs = executeStatement(sql, stmt.executeQuery())
 
     val result = if (rs.next()) {
-      entity.read(rs, ResultSetParams)
+      xtract.read.reado(entity.fields, rs, ResultSetParams)
       Some(entity)
     } else {
       None
@@ -159,7 +158,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     val rs = executeStatement(sql, stmt.executeQuery())
 
     val result = if (rs.next()) {
-      entity.read(rs, ResultSetParams)
+      xtract.read.reado(entity.fields, rs, ResultSetParams)
       Some(entity)
     } else {
       None

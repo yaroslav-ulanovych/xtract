@@ -33,6 +33,7 @@ object Converter {
 
 object BuiltInConverters {
   object BigIntToInt extends SimpleConverter((f: BigInt) => if (f.isValidInt) Some(f.intValue) else None)
+  object IntegerToInt extends SimpleConverter[Integer, Int](x => Some(x))
 }
 
 // def begin JavaEnumConverter

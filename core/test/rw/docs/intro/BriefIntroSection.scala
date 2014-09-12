@@ -1,7 +1,7 @@
 package rw.docs.intro
 
 import rw.FunSuite
-import xtract.{Obj, AbstractObj}
+import xtract.{read, Obj, AbstractObj}
 
 
 class Person extends Obj {
@@ -38,7 +38,7 @@ class BriefIntroSection extends FunSuite {
         "partner" -> "Mary"
       )
     )
-    val person = Obj.read[Person] from data
+    val person = read[Person] from data
     person.name() shouldBe "John"
     person.gender() shouldBe Gender.Male
     person.address().country() shouldBe "USA"

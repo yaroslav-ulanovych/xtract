@@ -152,118 +152,6 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
     fields -= wrappee
   }
 
-  def read[Data](fields: Traversable[Field[_]], data: Data, params: ReadParams[Data]): Unit = {
-    readimpl(this, fields, data, params)
-  }
-
-
-  protected def readimpl[Data](rootObj: Entity, fields: Traversable[Field[_]], data: Data, params: ReadParams[Data]) {
-    for(field <- fields) {
-      field match {
-        case field_ : SimpleField[_] => {
-          val field = field_.asInstanceOf[Field[Any]]
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          params.reader.get(data, key) match {
-            case Some(v) => {
-              if (field.valueClass.isAssignableFrom(v.getClass)) {
-                field := v
-              } else {
-                params.converters.find(x => x.canConvertFrom(v.getClass) && x.canConvertTo(field.valueClass)) match {
-                  case Some(converter) => {
-                    converter.convert(v, field.valueClass) match {
-                      case Some(value) => field := value
-                      case None => ??? //throw BadFieldValueException(rootObj.getClass, field, v, key, data, Some(converter))
-                    }
-                  }
-                  case None => ??? //throw BadFieldValueException(rootObj, field, v, key, data, None)
-                }
-              }
-            }
-            case None => ??? //throw new MissingFieldException(rootObj, key, data, field)
-          }
-        }
-        case field_ : CustomField[_, _] => {
-          val field = field_.asInstanceOf[CustomField[Any, Any]]
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          params.reader.get(data, key) match {
-            case Some(value) => {
-              if (field.backingClass.isAssignableFrom(value.getClass)) {
-                field.deserialize(value) match {
-                  case Some(value) => {
-                    field := value
-                  }
-                  case None => ??? //throw new BadFieldValueException(rootObj, field, value, key, data, None)
-                }
-              } else {
-                ??? //throw new BadFieldValueException(rootObj, field, value, key, data, None)
-              }
-            }
-            case None => ??? //throw new MissingFieldException(rootObj, key, data, field)
-          }
-        }
-        case field_ : EmbeddedConcreteField[_] => {
-          val field = field_.asInstanceOf[EmbeddedConcreteField[Obj]]
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          params.layout.dive(data, key, params) match {
-            case Some(Right((data, layout))) => {
-              val entity = field.valueClass.newInstance()
-              entity.readimpl(rootObj, entity.fields, data, params + layout)
-              field := entity
-            }
-            case Some(Left(v)) => ???
-            case None => ???
-          }
-        }
-        case field_ : EmbeddedPolymorphicField[_]  => {
-          val field = field_.asInstanceOf[EmbeddedPolymorphicField[AbstractObj]]
-          val typeHint = params.thl.get(field.getName(), data, params) match {
-            case Some(Right(name)) => name
-            case Some(Left(v)) => ???
-            case None => ???
-          }
-          params.thns.guessType(field.classTag.runtimeClass, typeHint) match {
-            case Some(klass) => {
-              val key = params.layout.makeKey(field.getName(), Some(typeHint), params.fnc)
-              params.layout.dive(data, key, params) match {
-                case Some(Right((data, layout))) => {
-                  val entity = klass.newInstance().asInstanceOf[AbstractObj]
-                  entity.readimpl(rootObj, entity.fields, data, params + layout)
-                  field := entity
-                }
-                case Some(Left(v)) => ???
-                case None => ??? //throw new MissingFieldException(rootObj, key, data, field)
-              }
-            }
-            case None => ???
-          }
-        }
-//        case field: LinkField[_] => {
-//          field.asInstanceOf[LinkField[Any]] := params.get(field, data)
-//        }
-//        case field: PhantomField[_] => {
-//          field.deserialize() match {
-//            case Some(x) => field := x
-//            case None => throw new MissingFieldException(field, null, params)
-//          }
-//        }
-//        case field: OptionalField[_] => {
-//          val v = try {
-//            read(List(field.wrappee), data, params)
-//            Some(field.wrappee())
-//          } catch {
-//            case e: MissingFieldException if (e.field == field.wrappee) => None
-//            case e: MissingTypeHintException => None
-//          }
-//          field := v
-//        }
-      }
-    }
-  }
-
-  def read[Data](data: Data, params: ReadParams[Data]) {
-    read(fields, data, params)
-  }
-
   def write[To](params: WriteParams[To] = DefaultWriteParams): To = {
     writeimpl(params.writer.create, params)
   }
@@ -301,7 +189,7 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
           val key = params.layout.makeKey(field.getName(), Some(typeHint), params.fnc)
           val (data2, layout) = params.layout.dive(data, key, params)
           val newParams = params + layout
-          params.thl.put(data, data2, field.getName(), typeHint,  params)
+          params.writer.put(data2, params.layout.makeKey(List("type"), None, params.fnc), typeHint)
           entity.writeimpl(data2, newParams)
         }
         case field: LinkField[_] => {
@@ -388,14 +276,6 @@ trait FieldTypeShortcuts {
 }
 
 object Obj {
-  def read[O <: Obj: ClassTag] = new {
-    def from[D](data: D)(implicit params: ReadParams[D] = DefaultReadParams): O = {
-      val obj = implicitly[ClassTag[O]].runtimeClass.newInstance().asInstanceOf[O]
-      obj.read(data, params)
-      obj
-    }
-  }
-
   def create[T <: Entity: ClassTag](f: T => Unit): T = {
     val x = implicitly[ClassTag[T]].runtimeClass.newInstance().asInstanceOf[T]
     f(x)

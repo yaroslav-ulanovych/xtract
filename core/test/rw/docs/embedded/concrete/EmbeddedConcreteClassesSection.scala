@@ -1,7 +1,6 @@
 package rw.docs.embedded.concrete
 
-import xtract.{FlatLayout, DefaultReadParams, FunSuite}
-import xtract.Obj
+import xtract._
 
 
 class Person extends Obj {
@@ -31,11 +30,11 @@ class EmbeddedConcreteClassesSection extends FunSuite {
         "city" -> "NY"
       )
     )
-    val person = Obj.read[Person] from data
+    val person = read[Person] from data
   }
 
   test("flat layout") {
     implicit val params = DefaultReadParams + FlatLayout("_")
-    val person = Obj.read[Person] from data
+    val person = read[Person] from data
   }
 }

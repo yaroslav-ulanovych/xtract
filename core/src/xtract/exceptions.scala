@@ -1,7 +1,5 @@
 package xtract
 
-class ReadException(msg: String) extends Exception(msg)
-
 class InstantiationException(msg: String) extends Exception(msg)
 
 object instantiationException {
@@ -13,7 +11,7 @@ case class MissingFieldException(
   field: String,
   data: Any
 ) extends Exception(
-  s"missing field ${klass.getSimpleName}.$field in $data"
+  s"error reading missing ${klass.getName}, missing field $field in $data"
 )
 
 case class BadFieldValueException(
@@ -27,13 +25,16 @@ case class BadFieldValueException(
   s"bad value for ${klass.getSimpleName}.$field field of ${fieldType.getSimpleName} type: ${valueType.getSimpleName}($value), converter: $converter"
 )
 
-object badFieldValue {
-  def apply(
-    klass: Class[_],
-    field: String,
-    fieldType: Class[_],
-    value: Any,
-    valueType: Class[_],
-    converter: Option[Converter]
-  ) = throw new BadFieldValueException(klass, field, fieldType, value, valueType, converter)
-}
+abstract class ReadException(klass: Class[_], msg: String) extends Exception(
+  s"error reading ${klass.getName}: $msg"
+)
+
+case class MissingTypeHintException(
+  klass: Class[_],
+  field: String,
+  fieldType: Class[_],
+  data: Any
+) extends ReadException(
+  klass,
+  s"missing type hint for $field field of ${fieldType.getName} type in $data"
+)

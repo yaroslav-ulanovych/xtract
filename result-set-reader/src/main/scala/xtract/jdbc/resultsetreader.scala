@@ -22,7 +22,6 @@ object ResultSetParams extends ReadParams[ResultSet](
   reader = ResultSetReader,
   layout = FlatLayout("__"),
   thns = SamePackageTypeHintNamingStrategy,
-  thl = NearTypeHintLocation(List("type")),
   fnc = FieldNamingConvention(LowerCase, Underscore),
   converters = Seq()
 )

@@ -1,6 +1,10 @@
 package xtract.obj.polymorphic.standalone
 
-import xtract.{NearTypeHintLocation, DefaultWriteParams, AbstractObj, FunSuite}
+import xtract._
+
+class Holder extends Obj {
+  val figure = embedded[Figure]
+}
 
 trait Figure extends AbstractObj
 
@@ -14,32 +18,41 @@ class Circle extends Figure {
 }
 
 class StandalonePolymorphicObjectsTest extends FunSuite {
-  val layout1 = Map(
-    "type" -> "Rectangle",
-    "width" -> 4,
-    "height" -> 2
-  )
-
-  val layout2 = Map(
-  "type" -> "Rectangle",
-    "args" -> Map(
-    "width" -> 4,
-    "height" -> 2
+  test("read standalone polymorphic object from nested layout") {
+    val data = Map(
+      "type" -> "Rectangle",
+      "width" -> 4,
+      "height" -> 2
     )
-  )
 
-  val layout3 = Map(
-    "type" -> "Rectangle",
-    "rectangleWidth" -> 4,
-    "rectangleHeight" -> 2
-  )
+    val figure = read[Figure] from data
+    figure.asInstanceOf[Rectangle].width() shouldBe 4
+    figure.asInstanceOf[Rectangle].height() shouldBe 2
+  }
 
-  test("write") {
-    val figure = new Rectangle
-    figure.width := 4
-    figure.height := 2
+  test("read embedded polymorphic object from nested layout") {
+    val data = Map(
+      "figure" -> Map(
+        "type" -> "Rectangle",
+        "width" -> 4,
+        "height" -> 2
+      )
+    )
 
-    val data = figure.write(DefaultWriteParams + NearTypeHintLocation("type"))
-    println(data)
+    val holder = read[Holder] from data
+    holder.figure().asInstanceOf[Rectangle].width() shouldBe 4
+    holder.figure().asInstanceOf[Rectangle].height() shouldBe 2
+  }
+
+  test("read standalone polymorphic from flat layout") {
+    val data = Map(
+      "type" -> "Rectangle",
+      "rectangle/width" -> 4,
+      "rectangle/height" -> 2
+    )
+    implicit val params = DefaultReadParams + FlatLayout("/")
+    val figure = read[Figure] from data
+    figure.asInstanceOf[Rectangle].width() shouldBe 4
+    figure.asInstanceOf[Rectangle].height() shouldBe 2
   }
 }
