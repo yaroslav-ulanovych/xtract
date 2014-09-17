@@ -2,20 +2,25 @@ package xtract
 
 
 trait TypeHintNamingStrategy {
-  def getTypeHint(entity: AbstractObj): String
+  def getTypeHint(entity: AbstractObj): List[String]
   def guessType(klass: Class[_], typeHint: String): Option[Class[_]]
+
+  def getTypeHint(entity: AbstractObj, fnc: FieldNamingConvention): String = {
+    fnc.apply(getTypeHint(entity))
+  }
 }
 
 object SamePackageTypeHintNamingStrategy extends TypeHintNamingStrategy {
 
-  def getTypeHint(entity: AbstractObj): String = {
+  def getTypeHint(entity: AbstractObj): List[String] = {
     val x = entity.abstractClassName
     val y = entity.getClass.getSimpleName
-    if (y.endsWith(x)) {
+    val typeHint = if (y.endsWith(x)) {
       y.substring(0, y.length - x.length)
     } else {
       y
     }
+    Utils.splitFieldNameIntoParts(typeHint)
   }
 
   def guessType(klass: Class[_], typeHint: String): Option[Class[_]] = {

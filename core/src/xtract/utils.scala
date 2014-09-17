@@ -53,6 +53,12 @@ object StringUtils {
       case _: NumberFormatException => None
     }
   }
+
+  def capitalizeFirstLetter(s: String): String = {
+    val chars = s.toCharArray
+    chars(0) = Character.toUpperCase(chars(0))
+    new String(chars)
+  }
 }
 
 class NotSupportedOperationException(description: String) extends Exception(description)

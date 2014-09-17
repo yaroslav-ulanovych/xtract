@@ -11,7 +11,7 @@ case class MissingFieldException(
   field: String,
   data: Any
 ) extends Exception(
-  s"error reading missing ${klass.getName}, missing field $field in $data"
+  s"error reading ${klass.getName}, missing field $field in $data"
 )
 
 case class BadFieldValueException(
@@ -37,4 +37,14 @@ case class MissingTypeHintException(
 ) extends ReadException(
   klass,
   s"missing type hint for $field field of ${fieldType.getName} type in $data"
+)
+
+case class BadTypeHintException(
+  klass: Class[_],
+  field: String,
+  fieldType: Class[_],
+  typeHint: String
+) extends ReadException(
+  klass,
+  s"bad type hint for $field field of ${fieldType.getName}: $typeHint"
 )

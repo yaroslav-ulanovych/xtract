@@ -18,18 +18,18 @@ trait Casing {
 }
 // def end
 
+object CamelCase extends Casing {
+  def apply(xs: List[String]): List[String] = {
+    xs.map(_.toLowerCase) map StringUtils.capitalizeFirstLetter
+  }
+}
+
 object LowerCamelCase extends Casing {
   def apply(xs: List[String]): List[String] = {
     xs.map(_.toLowerCase) match {
-      case x :: xs => x :: (xs map capitalizeFirstLetter)
+      case x :: xs => x :: (xs map StringUtils.capitalizeFirstLetter)
       case Nil => Nil
     }
-  }
-
-  def capitalizeFirstLetter(s: String): String = {
-    val chars = s.toCharArray
-    chars(0) = Character.toUpperCase(chars(0))
-    new String(chars)
   }
 }
 

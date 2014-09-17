@@ -157,48 +157,48 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
   }
 
   def writeimpl[To](data: To, params: WriteParams[To]): To = {
-    if (this.isInstanceOf[AbstractObj]) {
-      val entity = this.asInstanceOf[AbstractObj]
-      val typeHint = params.thns.getTypeHint(entity)
-      val key = params.layout.makeKey(List(), Some(typeHint), params.fnc)
-      val (data2, _) = params.layout.dive(data, key, params)
-//      params.thl.put(data, data2, List(), typeHint,  params)
-    }
-    fields.foreach(field => {
-      field match {
-        case field: SimpleField[_] => {
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          params.writer.put(data, key, field())
-        }
-        case field_ : CustomField[_, _] => {
-          val field = field_.asInstanceOf[CustomField[Any, Any]]
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          params.writer.put(data, key, field.serialize(field()))
-        }
-        case field_ : EmbeddedConcreteField[_] => {
-          val field = field_.asInstanceOf[EmbeddedConcreteField[Obj]]
-          val key = params.layout.makeKey(field.getName(), None, params.fnc)
-          val (data2, layout) = params.layout.dive(data, key, params)
-          val entity = field()
-          entity.writeimpl(data2, params + layout)
-        }
-        case field_ : EmbeddedPolymorphicField[_] => {
-          val field = field_.asInstanceOf[EmbeddedPolymorphicField[AbstractObj]]
-          val entity = field()
-          val typeHint = params.thns.getTypeHint(entity)
-          val key = params.layout.makeKey(field.getName(), Some(typeHint), params.fnc)
-          val (data2, layout) = params.layout.dive(data, key, params)
-          val newParams = params + layout
-          params.writer.put(data2, params.layout.makeKey(List("type"), None, params.fnc), typeHint)
-          entity.writeimpl(data2, newParams)
-        }
-        case field: LinkField[_] => {
-          //          params.put(data, field, field())
-        }
-      }
-    })
-
-    data
+    ???
+//    if (this.isInstanceOf[AbstractObj]) {
+//      val entity = this.asInstanceOf[AbstractObj]
+//      val typeHint = params.thns.getTypeHint(entity)
+//      val key = params.layout.makeKey(List(), Some(typeHint), params.fnc)
+//      val (data2, _) = params.layout.dive(data, key, params)
+//    }
+//    fields.foreach(field => {
+//      field match {
+//        case field: SimpleField[_] => {
+//          val key = params.layout.makeKey(field.getName(), None, params.fnc)
+//          params.writer.put(data, key, field())
+//        }
+//        case field_ : CustomField[_, _] => {
+//          val field = field_.asInstanceOf[CustomField[Any, Any]]
+//          val key = params.layout.makeKey(field.getName(), None, params.fnc)
+//          params.writer.put(data, key, field.serialize(field()))
+//        }
+//        case field_ : EmbeddedConcreteField[_] => {
+//          val field = field_.asInstanceOf[EmbeddedConcreteField[Obj]]
+//          val key = params.layout.makeKey(field.getName(), None, params.fnc)
+//          val (data2, layout) = params.layout.dive(data, key, params)
+//          val entity = field()
+//          entity.writeimpl(data2, params + layout)
+//        }
+//        case field_ : EmbeddedPolymorphicField[_] => {
+//          val field = field_.asInstanceOf[EmbeddedPolymorphicField[AbstractObj]]
+//          val entity = field()
+//          val typeHint = params.thns.getTypeHint(entity)
+//          val key = params.layout.makeKey(field.getName(), Some(typeHint), params.fnc)
+//          val (data2, layout) = params.layout.dive(data, key, params)
+//          val newParams = params + layout
+//          params.writer.put(data2, params.layout.makeKey(List("type"), None, params.fnc), typeHint)
+//          entity.writeimpl(data2, newParams)
+//        }
+//        case field: LinkField[_] => {
+//          //          params.put(data, field, field())
+//        }
+//      }
+//    })
+//
+//    data
   }
 }
 

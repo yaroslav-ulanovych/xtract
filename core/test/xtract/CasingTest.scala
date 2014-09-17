@@ -1,6 +1,10 @@
 package xtract
 
 class CasingTest extends FunSuite {
+  test("camel case") {
+    CamelCase.apply(List("HOME", "ADDRESS")) shouldBe List("Home", "Address")
+  }
+
   test("lower camel case") {
     LowerCamelCase.apply(List("HOME", "ADDRESS")) shouldBe List("home", "Address")
   }
