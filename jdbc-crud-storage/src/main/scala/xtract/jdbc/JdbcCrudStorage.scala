@@ -8,6 +8,7 @@ import xtract.query._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 
 case class DbSettings(driver: String, url: String, user: String, password: String)
@@ -56,9 +57,11 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
   )
 
   def create[T <: Entity](obj: T)(implicit dummy: DummyImplicit) {
-    val data = obj.write(writeParams)
-    val sql = JdbcCrudStorage.makeInsertQuery(obj.className, data)
-    println(sql)
+    val data = write(obj, writeParams)
+
+    val tableName = getTableName(obj)
+
+    val sql = JdbcCrudStorage.makeInsertQuery(tableName, data)
 
     val stmt = connection.prepareStatement(sql)
 
@@ -147,6 +150,32 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
     stmt.close()
   }}
+
+  def getTableName[T <: Entity](obj: T): String = {
+    obj match {
+      case obj: Obj => obj.className
+      case obj: AbstractObj => obj.abstractClassName
+    }
+  }
+
+  def select[T <: Entity: ClassTag]: List[T] = {
+    val klass = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[Entity]]
+    val sql = s"select * from ${klass.getSimpleName}"
+    val stmt = connection.prepareStatement(sql)
+
+    val rs = executeStatement(sql, stmt.executeQuery())
+
+    val result = ArrayBuffer[T]()
+
+    while (rs.next()) {
+      result += xtract.read[T].from(rs)(ResultSetParams)
+    }
+
+    rs.close()
+    stmt.close()
+
+    result.toList
+  }
 
   def select[T <: Entity](query: Query[T]): Option[T] = {
     val entity = query.meta.getClass.asInstanceOf[Class[T]].newInstance()

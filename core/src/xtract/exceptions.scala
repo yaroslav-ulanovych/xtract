@@ -21,8 +21,9 @@ case class BadFieldValueException(
   value: Any,
   valueType: Class[_],
   converter: Option[Converter]
-) extends Exception(
-  s"bad value for ${klass.getSimpleName}.$field field of ${fieldType.getSimpleName} type: ${valueType.getSimpleName}($value), converter: $converter"
+) extends ReadException(
+  klass,
+  s"bad value for $field field of ${fieldType.getSimpleName} type: ${valueType.getSimpleName}($value), converter: $converter"
 )
 
 abstract class ReadException(klass: Class[_], msg: String) extends Exception(

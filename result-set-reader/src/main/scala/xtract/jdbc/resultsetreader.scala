@@ -2,6 +2,8 @@ package xtract
 
 import java.sql.{Types => SqlTypes, ResultSet}
 
+import xtract.BuiltInConverters.IntegerToInt
+
 
 object ResultSetReader extends Reader[ResultSet] {
   def get(data: ResultSet, key: String): Option[Any] = {
@@ -23,5 +25,5 @@ object ResultSetParams extends ReadParams[ResultSet](
   layout = FlatLayout("__"),
   thns = SamePackageTypeHintNamingStrategy,
   fnc = FieldNamingConvention(LowerCase, Underscore),
-  converters = Seq()
+  converters = Seq(IntegerToInt)
 )
