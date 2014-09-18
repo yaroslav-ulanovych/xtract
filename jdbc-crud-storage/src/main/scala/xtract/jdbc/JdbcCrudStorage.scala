@@ -56,7 +56,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     layout = FlatLayout("__")
   )
 
-  def create[T <: Entity](obj: T)(implicit dummy: DummyImplicit) {
+  def create[T <: Entity](obj: T) {
     val data = write(obj, writeParams)
 
     val tableName = getTableName(obj)
@@ -76,31 +76,31 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     stmt.close()
   }
 
-  def create[T <: Entity with Id](entity: T): T = {
-    val data = entity.write(writeParams)
-    val sql = JdbcCrudStorage.makeInsertQuery(entity.className, data)
-    println(sql)
-
-    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
-
-    data.values.zipWithIndex.foreach(kv => {
-      val value = kv._1
-      val index = kv._2 + 1
-      JdbcCrudStorage.setParameter(stmt, index, value)
-    })
-
-    executeStatement(sql, stmt.execute())
-
-    // get the auto-generated id
-    val rs = stmt.getGeneratedKeys
-    rs.next()
-    xtract.read.reado(List(entity.id), rs, ResultSetParams)
-    rs.close()
-
-    stmt.close()
-
-    entity
-  }
+//  def create[T <: Entity with Id](entity: T): T = {
+//    val data = entity.write(writeParams)
+//    val sql = JdbcCrudStorage.makeInsertQuery(entity.className, data)
+//    println(sql)
+//
+//    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+//
+//    data.values.zipWithIndex.foreach(kv => {
+//      val value = kv._1
+//      val index = kv._2 + 1
+//      JdbcCrudStorage.setParameter(stmt, index, value)
+//    })
+//
+//    executeStatement(sql, stmt.execute())
+//
+//    // get the auto-generated id
+//    val rs = stmt.getGeneratedKeys
+//    rs.next()
+//    xtract.read.reado(List(entity.id), rs, ResultSetParams)
+//    rs.close()
+//
+//    stmt.close()
+//
+//    entity
+//  }
 
   def read[T <: Entity with Id : Manifest](id: T#Id): Option[T] = {
     val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]

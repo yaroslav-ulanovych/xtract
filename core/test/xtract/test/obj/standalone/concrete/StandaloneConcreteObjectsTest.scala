@@ -36,7 +36,5 @@ class StandaloneConcreteObjectsTest extends FunSuite {
     val e = intercept[BadFieldValueException] {
       xtract.read[Rectangle] from Map("width" -> 4, "height" -> "string")
     }
-
-    println(e)
   }
 }

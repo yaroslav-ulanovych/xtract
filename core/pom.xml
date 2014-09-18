@@ -20,12 +20,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.json4s</groupId>
-			<artifactId>json4s-core_${scalaVersion}</artifactId>
-			<version>3.2.10</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.json4s</groupId>
 			<artifactId>json4s-native_${scalaVersion}</artifactId>
 			<version>3.2.10</version>
 			<scope>test</scope>
