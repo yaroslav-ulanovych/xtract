@@ -1,6 +1,4 @@
-package rw
-
-import xtract.AbstractObj
+package xtract
 
 class AbstractClassNameTest extends FunSuite {
   test("class") {

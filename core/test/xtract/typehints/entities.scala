@@ -1,4 +1,4 @@
-package rw.obj
+package xtract.typehints
 
 import xtract.{AbstractObj, Obj}
 
@@ -12,7 +12,7 @@ class Address extends Obj {
   val country = string
 }
 
-class Status extends AbstractObj
+trait Status extends AbstractObj
 
 class Married extends Status {
   val partner = string

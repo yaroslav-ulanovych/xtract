@@ -1,6 +1,6 @@
-package rw.obj
+package xtract.var2
 
-import rw.FunSpec
+import xtract.FunSpec
 
 
 class VarTest extends FunSpec {

@@ -183,7 +183,7 @@ object read {
                   case Some(converter) => {
                     converter.convert(v, field.valueClass) match {
                       case Some(value) => field := value
-                      case None => ??? //throw BadFieldValueException(rootObj.getClass, field, v, key, data, Some(converter))
+                      case None => throw BadFieldValueException(field.entity.getClass, key, field.valueClass, v, v.getClass, Some(converter))
                     }
                   }
                   case None => throw BadFieldValueException(field.entity.getClass, key, field.valueClass, v, v.getClass, None)

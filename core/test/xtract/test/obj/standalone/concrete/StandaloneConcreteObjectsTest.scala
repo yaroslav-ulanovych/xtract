@@ -27,4 +27,16 @@ class StandaloneConcreteObjectsTest extends FunSuite {
       "height" -> 2
     )
   }
+
+  test("bad field value exception with converter") {
+    val converter = Converter[String, Int](x => None)
+
+    implicit val params = DefaultReadParams + converter
+
+    val e = intercept[BadFieldValueException] {
+      xtract.read[Rectangle] from Map("width" -> 4, "height" -> "string")
+    }
+
+    println(e)
+  }
 }
