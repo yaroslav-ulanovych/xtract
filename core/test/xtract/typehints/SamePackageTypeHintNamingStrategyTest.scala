@@ -1,9 +1,9 @@
 package xtract.typehints
 
-import xtract.{SamePackageTypeHintNamingStrategy, FunSuite}
+import xtract.{FieldName, SamePackageTypeHintNamingStrategy, FunSuite}
 
 class SamePackageTypeHintNamingStrategyTest extends FunSuite {
   test("test") {
-    SamePackageTypeHintNamingStrategy.getTypeHint(new Married) shouldBe List("Married")
+    SamePackageTypeHintNamingStrategy.getTypeHint(new Married) shouldBe FieldName(List("Married"))
   }
 }

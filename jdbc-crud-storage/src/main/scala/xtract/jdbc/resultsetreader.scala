@@ -1,8 +1,9 @@
-package xtract
+package xtract.jdbc
 
-import java.sql.{Types => SqlTypes, ResultSet}
+import java.sql.{ResultSet, Types => SqlTypes}
 
 import xtract.BuiltInConverters.IntegerToInt
+import xtract._
 
 
 object ResultSetReader extends Reader[ResultSet] {

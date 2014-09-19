@@ -14,6 +14,7 @@ import scala.reflect.ClassTag
 case class DbSettings(driver: String, url: String, user: String, password: String)
 
 class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
+  import JdbcCrudStorage._
 
   private val cpds = new ComboPooledDataSource()
   cpds.setDriverClass(settings.driver)
@@ -47,14 +48,6 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
   def getReader = ResultSetReader
 
-
-  private val writeParams = WriteParams(
-    writer = MapWriter,
-    reader = MapReader,
-    fnc = LowerCase.delimitedBy(Underscore),
-    thns = SamePackageTypeHintNamingStrategy,
-    layout = FlatLayout("__")
-  )
 
   def create[T <: Entity](obj: T) {
     val data = write(obj, writeParams)
@@ -103,30 +96,31 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 //  }
 
   def read[T <: Entity with Id : Manifest](id: T#Id): Option[T] = {
-    val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]
-    val fnc = LowerCase.delimitedBy(Underscore)
-    val idFieldName = fnc.apply(entity.id.qname)
-    val sql = s"select * from ${entity.className} where $idFieldName = ?"
-    val stmt = connection.prepareStatement(sql)
-    id match {
-      case value: Int => stmt.setInt(1, value)
-      case value: Long => stmt.setLong(1, value)
-      case value: String => stmt.setString(1, value)
-    }
-
-    val rs = executeStatement(sql, stmt.executeQuery())
-
-    val result = if (rs.next()) {
-      xtract.read.reado(entity.fields, rs, ResultSetParams)
-      Some(entity)
-    } else {
-      None
-    }
-
-    rs.close()
-    stmt.close()
-
-    result
+    ???
+//    val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]
+//    val fnc = LowerCase.delimitedBy(Underscore)
+//    val idFieldName = fnc.apply(entity.id.qname)
+//    val sql = s"select * from ${entity.className} where $idFieldName = ?"
+//    val stmt = connection.prepareStatement(sql)
+//    id match {
+//      case value: Int => stmt.setInt(1, value)
+//      case value: Long => stmt.setLong(1, value)
+//      case value: String => stmt.setString(1, value)
+//    }
+//
+//    val rs = executeStatement(sql, stmt.executeQuery())
+//
+//    val result = if (rs.next()) {
+//      xtract.read.reado(entity.fields, rs, ResultSetParams)
+//      Some(entity)
+//    } else {
+//      None
+//    }
+//
+//    rs.close()
+//    stmt.close()
+//
+//    result
   }
 
   def update[T <: Entity with Id](entity: T) = new { def set(f: (T) => Unit) {
@@ -158,42 +152,25 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     }
   }
 
-  def select[T <: Entity: ClassTag]: List[T] = {
-    val klass = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[Entity]]
-    val sql = s"select * from ${klass.getSimpleName}"
-    val stmt = connection.prepareStatement(sql)
-
-    val rs = executeStatement(sql, stmt.executeQuery())
-
-    val result = ArrayBuffer[T]()
-
-    while (rs.next()) {
-      result += xtract.read[T].from(rs)(ResultSetParams)
-    }
-
-    rs.close()
-    stmt.close()
-
-    result.toList
+  def getTableName[T <: Entity](klass: Class[T]): String = {
+    klass.getSimpleName
   }
 
-  def select[T <: Entity](query: Query[T]): Option[T] = {
-    val entity = query.meta.getClass.asInstanceOf[Class[T]].newInstance()
+  def select[T <: Obj, U <: Unique](query: Query[T, U]): Option[T] = {
     val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
-    val sql = s"select * from ${entity.className} where ${where}"
+    val sql = s"select * from ${getTableName(query.klass)} where ${where}"
     val stmt = connection.prepareStatement(sql)
     values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
     val rs = executeStatement(sql, stmt.executeQuery())
 
     val result = if (rs.next()) {
-      xtract.read.reado(entity.fields, rs, ResultSetParams)
-      Some(entity)
+      val obj = xtract.read.read1(query.klass, rs, ResultSetParams)
+      if (rs.next()) throw new RuntimeException("expected unique result")
+      Some(obj)
     } else {
       None
     }
-
-    if (rs.next()) throw new RuntimeException("expected unique result")
 
     rs.close()
     stmt.close()
@@ -201,6 +178,28 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     result
   }
 
+  def select[T <: Obj, U <: NotUnique](query: Query[T, U])(implicit dummy: DummyImplicit): List[T] = {
+    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
+    val sql = s"select * from ${getTableName(query.klass)} where ${where}"
+    val stmt = connection.prepareStatement(sql)
+    values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
+
+    val rs = executeStatement(sql, stmt.executeQuery())
+
+    val result = ArrayBuffer[T]()
+
+    while (rs.next) {
+      val obj = xtract.read.read1(query.klass, rs, ResultSetParams)
+      result += obj
+    }
+
+    if (rs.next()) throw new RuntimeException("expected unique result")
+
+    rs.close()
+    stmt.close()
+
+    result.toList
+  }
 
   def delete[T <: Entity: Manifest]() {
     val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]
@@ -213,7 +212,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
   }
 
 
-  def delete[T <: Entity : Manifest](where: Query[T]) {
+  def delete[T <: Entity : Manifest, U <: Uniqueness](where: Query[T, U]) {
     val entity = where.meta.getClass.newInstance().asInstanceOf[T]
     val sql = s"delete from ${entity.className} where ${???}"
     val stmt = connection.createStatement()
@@ -247,27 +246,32 @@ object JdbcCrudStorage {
 
   import xtract.query._
 
-  def makeWhere(clauses: List[QueryClause]): (String, List[Any]) = {
+  def makeWhere(clauses: List[QueryClause[_]]): (String, List[Any]) = {
     val values = ArrayBuffer[Any]()
     val sql = clauses.map(_ match {
-      case IsClause(field, klass) => {
-        values += klass.newInstance().typeDiscriminator
-        s"""${field.qname + "_type"} = ?"""
-      }
+//      case IsClause(field, klass) => {
+//        values += klass.newInstance().typeDiscriminator
+//        s"""${field.qname + "_type"} = ?"""
+//      }
       case SimpleFieldEqClause(field, value) => {
         values += value
-        s"""${field.fqname} = ?"""
+        s"""${getFieldName(field)} = ?"""
       }
-      case LinkFieldEqClause(field, value) => {
-        values += value
-        s"""${field.fqname} = ?"""
-      }
-      case CustomFieldEqClause(field, value) => {
-        values += field.serialize(value)
-        s"""${field.fqname} = ?"""
-      }
+//      case LinkFieldEqClause(field, value) => {
+//        values += value
+//        s"""${field.fqname} = ?"""
+//      }
+//      case CustomFieldEqClause(field, value) => {
+//        values += field.serialize(value)
+//        s"""${field.fqname} = ?"""
+//      }
     }).mkString(" and ")
     (sql, values.toList)
+  }
+
+
+  def getFieldName(field: Entity#Field[_]): String = {
+    field.fqname(writeParams.thns).map(fnc.apply).mkString(layout.separator)
   }
 
   def setParameter(stmt: PreparedStatement, index: Int, value: Any) {
@@ -279,4 +283,15 @@ object JdbcCrudStorage {
       case any => throw new UnsupportedOperationException(s"${any.getClass.getCanonicalName} isn't supported")
     }
   }
+
+  val fnc = LowerCase.delimitedBy(Underscore)
+  val layout = FlatLayout("__")
+
+  val writeParams = WriteParams(
+    writer = MapWriter,
+    reader = MapReader,
+    fnc = fnc,
+    thns = SamePackageTypeHintNamingStrategy,
+    layout = layout
+  )
 }

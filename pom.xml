@@ -10,7 +10,6 @@
 		<module>core</module>
 		<module>query</module>
 		<module>crud-storage</module>
-		<module>result-set-reader</module>
 		<module>jdbc-crud-storage</module>
 	</modules>
 

@@ -14,9 +14,9 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
     val classTag = implicitly[ClassTag[T]]
     private var value: Option[T] = None
 
-    var _name: List[String] = _
+    var _name: FieldName = _
 
-    def getName(): List[String] = {
+    def getName(): FieldName = {
       if (_name eq null) {
         val klass = entity.getClass
         val entityClassFields = FirstNextCollection[Class[_]](klass, _.getSuperclass).map(_.getDeclaredFields).flatten
@@ -43,12 +43,12 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
     }
 
     def setName(name: String) {
-      setName(name.split("(?=\\p{Upper})").map(_.toLowerCase).toList)
+      setName(FieldName(name.split("(?=\\p{Upper})").map(_.toLowerCase).toList))
     }
 
-    def setName(name: List[String]) {
+    def setName(name: FieldName) {
       if (_name ne null)
-        throw new IllegalStateException("field already has a name " + _name.mkString(""))
+        throw new IllegalStateException("field already has a name " + _name.words.mkString(""))
       _name = name
     }
 
@@ -83,31 +83,33 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
     }
 
     /** Qualified name. */
-    def qname: List[String] = entity match {
-      case entity: Obj => getName()
-      case entity: AbstractObj => /*entity.typeDiscriminator.toLowerCase :: */getName()
+    def qname(thns: TypeHintNamingStrategy): List[FieldName] = entity match {
+      case obj: Obj => List(getName())
+      case obj: AbstractObj => List(thns.getTypeHint(obj), getName)
     }
 
     /** Fully qualified name of the field. */
-    def fqname: List[List[String]] = (mpath :+ this).map(_.qname)
+    def fqname(thns: TypeHintNamingStrategy): List[FieldName] = (mpath :+ this).map(_.qname(thns)).flatten
 
     def mpath: List[Entity#EmbeddedField[_]] = entity.holder match {
       case Some(field) => field.mpath :+ field
       case None => List()
     }
 
-    override def toString: String = s"""${className}.${qname}"""
+//    override def toString: String = s"""${className}.${qname}"""
   }
 
   def className = getClass.getSimpleName
 
   abstract sealed class AbstractSimpleField[T: ClassTag] extends Field[T]
 
-  final class SimpleField[T: ClassTag] extends AbstractSimpleField[T] {
+  final class SimpleField[T: ClassTag, Uniqueness] extends AbstractSimpleField[T] {
     def this(dflt: T) {
       this()
       this := dflt
     }
+
+    def unique = this.asInstanceOf[SimpleField[T, Unique]]
   }
 
   abstract sealed class EmbeddedField[T <: Entity: ClassTag] extends Field[T] {
@@ -253,14 +255,16 @@ trait Embeddable {
 trait Shortcuts {
   self: Entity =>
 
-  def int = new SimpleField[Int]
-  def long = new SimpleField[Long]
-  def float = new SimpleField[Float]
-  def double = new SimpleField[Double]
-  def string = new SimpleField[String]
-  def bool = new SimpleField[Boolean]
-  def field[T <: Any: ClassTag] = new SimpleField[T]
-  def field[T <: Any: ClassTag](dflt: T) = new SimpleField[T](dflt)
+  def field[T <: Any: ClassTag] = new SimpleField[T, NotUnique]
+  def field[T <: Any: ClassTag](dflt: T) = new SimpleField[T, NotUnique](dflt)
+
+  def int = new SimpleField[Int, NotUnique]
+  def long = new SimpleField[Long, NotUnique]
+  def float = new SimpleField[Float, NotUnique]
+  def double = new SimpleField[Double, NotUnique]
+  def string = new SimpleField[String, NotUnique]
+  def bool = new SimpleField[Boolean, NotUnique]
+
   def link[T <: Entity with Id](implicit ClassTag: ClassTag[T#Id]) = new LinkField[T#Id]
   def embedded[T <: Obj](implicit dummy: DummyImplicit, classTag: ClassTag[T]) = new EmbeddedConcreteField[T]
   def embedded[T <: AbstractObj: ClassTag] = new EmbeddedPolymorphicField[T]
@@ -270,6 +274,7 @@ trait Shortcuts {
 
 trait FieldTypeShortcuts {
   type Field = Entity#Field[_]
+  type SimpleField = Entity#SimpleField[_, _]
   type EmbeddedField = Entity#EmbeddedField[_]
   type EmbeddedConcreteField = Entity#EmbeddedConcreteField[_]
   type EmbeddedPolymorphicField = Entity#EmbeddedPolymorphicField[AbstractObj]
@@ -288,6 +293,3 @@ trait Id {
   type Id
   def id: Field[Id]
 }
-
-case class FieldName(xs: List[String])
-case class Path(xs: List[FieldName])

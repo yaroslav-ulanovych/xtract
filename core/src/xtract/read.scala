@@ -4,7 +4,7 @@ import java.lang.reflect.Modifier
 
 import scala.reflect.ClassTag
 
-object read {
+object read extends Object with FieldTypeShortcuts {
 
   def apply[T](implicit classTag: ClassTag[T]) = new {
     def from[U](data: U)(implicit params: ReadParams[U] = DefaultReadParams): T = {
@@ -171,9 +171,9 @@ object read {
   def reado[Data](fields: Traversable[Entity#Field[_]], data: Data, params: ReadParams[Data]) {
     for(field <- fields) {
       field match {
-        case field_ : Entity#SimpleField[_] => {
+        case field_ : SimpleField => {
           val field = field_.asInstanceOf[Entity#Field[Any]]
-          val key = params.layout.makeKey(field.getName(), params.fnc)
+          val key = params.layout.makeKey(field.getName().words, params.fnc)
           params.reader.get(data, key) match {
             case Some(v) => {
               if (field.valueClass.isAssignableFrom(v.getClass)) {
@@ -227,12 +227,12 @@ object read {
 //        }
         case field_ : Entity#EmbeddedPolymorphicField[_]  => {
           val field = field_.asInstanceOf[Entity#EmbeddedPolymorphicField[AbstractObj]]
-          params.layout.dive1(data, params.fnc.apply(field.getName()), params) match {
+          params.layout.dive1(data, params.fnc.apply(field.getName().words), params) match {
             case Some(Right((data, layout))) => {
               field := read1(field.valueClass, data, params + layout)
             }
             case Some(Left(v)) => ???
-            case None => throw MissingTypeHintException(field.entity.getClass, field.getName().mkString, field.valueClass, data)
+            case None => throw MissingTypeHintException(field.entity.getClass, field.getName().words.mkString, field.valueClass, data)
           }
         }
         //        case field: LinkField[_] => {

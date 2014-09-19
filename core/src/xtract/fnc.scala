@@ -3,6 +3,7 @@ package xtract
 // def begin FieldNamingConvention
 case class FieldNamingConvention(casing: Casing, delimiter: Delimiter) extends (List[String] => String) {
   def apply(xs: List[String]): String = delimiter(casing(xs))
+  def apply(fn: FieldName): String = delimiter(casing(fn.words))
 }
 // def end
 
