@@ -48,6 +48,8 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
   def getReader = ResultSetReader
 
+  def close = cpds.close()
+
 
   def create[T <: Entity](obj: T) {
     val data = write(obj, writeParams)
@@ -156,9 +158,16 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     klass.getSimpleName
   }
 
-  def select[T <: Obj, U <: Unique](query: Query[T, U]): Option[T] = {
+  def select[T <: Obj, U <: Uniqueness](query: Query[T, U])(implicit qr: QueryResult[U]): qr.Result[T] = {
+    qr match {
+      case x: UniqueQueryResult => selectOne(query).asInstanceOf[qr.Result[T]]
+      case x: NotUniqueQueryResult => selectMany(query).asInstanceOf[qr.Result[T]]
+    }
+  }
+
+  def selectOne[T <: Obj, U <: Uniqueness](query: Query[T, U]): Option[T] = {
     val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
-    val sql = s"select * from ${getTableName(query.klass)} where ${where}"
+    val sql = s"select * from ${getTableName(query.klass)} ${where}"
     val stmt = connection.prepareStatement(sql)
     values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
@@ -178,9 +187,9 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     result
   }
 
-  def select[T <: Obj, U <: NotUnique](query: Query[T, U])(implicit dummy: DummyImplicit): List[T] = {
+  def selectMany[T <: Obj, U <: Uniqueness](query: Query[T, U])(implicit dummy: DummyImplicit): List[T] = {
     val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
-    val sql = s"select * from ${getTableName(query.klass)} where ${where}"
+    val sql = s"select * from ${getTableName(query.klass)} ${where}"
     val stmt = connection.prepareStatement(sql)
     values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
@@ -248,7 +257,7 @@ object JdbcCrudStorage {
 
   def makeWhere(clauses: List[QueryClause[_]]): (String, List[Any]) = {
     val values = ArrayBuffer[Any]()
-    val sql = clauses.map(_ match {
+    val sql = "where " + clauses.map(_ match {
 //      case IsClause(field, klass) => {
 //        values += klass.newInstance().typeDiscriminator
 //        s"""${field.qname + "_type"} = ?"""
@@ -266,7 +275,13 @@ object JdbcCrudStorage {
 //        s"""${field.fqname} = ?"""
 //      }
     }).mkString(" and ")
-    (sql, values.toList)
+
+    if (clauses.nonEmpty) {
+      (sql, values.toList)
+    } else {
+      ("", values.toList)
+    }
+
   }
 
 

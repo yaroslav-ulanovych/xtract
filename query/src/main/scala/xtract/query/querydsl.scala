@@ -4,6 +4,22 @@ import xtract._
 
 import scala.reflect.ClassTag
 
+
+
+sealed trait QueryResult[U <: Uniqueness] {
+  type Result[_]
+}
+
+class UniqueQueryResult extends QueryResult[Unique] {
+  type Result[T] = Option[T]
+}
+
+class NotUniqueQueryResult extends QueryResult[NotUnique] {
+  type Result[T] = List[T]
+}
+
+
+
 abstract sealed class QueryClause[Uniqueness]
 
 
@@ -54,7 +70,7 @@ case class SimpleFieldQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#S
 
 case class From[T <: Obj: ClassTag]() {
   def where[U <: Uniqueness](f: T => QueryClause[U]): Query[T, U] = {
-    val meta = manifest.runtimeClass.newInstance().asInstanceOf[T]
+    val meta = implicitly[ClassTag[T]].runtimeClass.newInstance().asInstanceOf[T]
     Query(meta, List(f(meta)))
   }
 }
@@ -67,6 +83,9 @@ object QueryDsl {
 //  implicit def singleWhereClauseToListOfThem(x: QueryClause) = List(x)
 
   implicit def simpleFieldToQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#SimpleField[T, U]) = SimpleFieldQueryClauseLeftOperand(field)
+
+  implicit def xx = new UniqueQueryResult
+  implicit def xxx = new NotUniqueQueryResult
 
 //  implicit def simpleFieldToQueryClauseLeftOperand[T, U](x: Entity#SimpleField[T, U]) = SimpleFieldQueryClauseLeftOperand(x)
 //  implicit def linkFieldToQueryClauseLeftOperand[T](x: Entity#LinkField[T]) = LinkFieldQueryClauseLeftOperand(x)
