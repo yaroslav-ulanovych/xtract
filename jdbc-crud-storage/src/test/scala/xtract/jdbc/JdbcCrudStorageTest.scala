@@ -5,7 +5,7 @@ import java.util.UUID
 
 import org.scalatest.{GivenWhenThen, Matchers, FunSuite}
 import xtract.query.Query
-import xtract.{AbstractObj, Obj}
+import xtract._
 
 trait Account extends AbstractObj
 
@@ -28,6 +28,8 @@ class Session extends Obj {
 }
 
 class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
+  val fnc = UpperCase.delimitedBy(Underscore)
+
   test("select all") {
     val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
     val conn = DriverManager.getConnection(dbSettings.url)
@@ -36,7 +38,7 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     stmt.execute("insert into user values (1, 'John');")
     stmt.execute("insert into user values (2, 'Mary');")
 
-    val storage = new JdbcCrudStorage(dbSettings)
+    val storage = new JdbcCrudStorage(dbSettings, fnc)
     try {
       storage.inTransaction {
         import xtract.query.QueryDsl._
@@ -66,7 +68,7 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     stmt.execute("insert into user values (2, 'John');")
     stmt.execute("insert into user values (3, 'Mary');")
 
-    val storage = new JdbcCrudStorage(dbSettings)
+    val storage = new JdbcCrudStorage(dbSettings, fnc)
 
     try {
       storage.inTransaction {
@@ -104,7 +106,7 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     stmt.execute("create table user(id int primary key, name varchar);")
     stmt.execute("create table session(id varchar primary key, user_id int references user(id));")
 
-    val storage = new JdbcCrudStorage(dbSettings)
+    val storage = new JdbcCrudStorage(dbSettings, fnc)
     try {
       storage.inTransaction {
         import xtract.query.QueryDsl._
@@ -130,4 +132,26 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
       conn.close()
     }
   }
+
+  test("schema support") {
+    val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
+    val conn = DriverManager.getConnection(dbSettings.url)
+    val stmt = conn.createStatement()
+    stmt.execute("create schema aaa;")
+    stmt.execute("set schema aaa;")
+    stmt.execute("create table user(id int primary key, name varchar);")
+    stmt.execute("insert into user values(1, 'John');")
+
+    val storage = new JdbcCrudStorage(dbSettings, fnc, Some("AAA"))
+    try {
+      storage.inTransaction {
+        import xtract.query.QueryDsl._
+        storage.select(from[User]).size shouldBe 1
+      }
+    } finally {
+      storage.close
+      conn.close()
+    }
+  }
+
 }

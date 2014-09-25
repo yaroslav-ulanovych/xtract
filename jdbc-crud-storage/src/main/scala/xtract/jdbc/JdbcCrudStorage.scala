@@ -3,6 +3,7 @@ package xtract.jdbc
 import java.sql.{Statement, Connection, PreparedStatement}
 
 import com.mchange.v2.c3p0.ComboPooledDataSource
+import com.typesafe.scalalogging.StrictLogging
 import xtract._
 import xtract.query._
 
@@ -13,8 +14,14 @@ import scala.reflect.ClassTag
 
 case class DbSettings(driver: String, url: String, user: String, password: String)
 
-class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
+class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: Option[String] = None) extends CrudStorage with StrictLogging {
   import JdbcCrudStorage._
+
+  val functions = settings.driver match {
+    case "org.h2.Driver" => H2SpecificFunctions
+    case "org.postgresql.Driver" => PostgresSpecificFunctions
+  }
+  import functions._
 
   private val cpds = new ComboPooledDataSource()
   cpds.setDriverClass(settings.driver)
@@ -34,6 +41,14 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     val connection = cpds.getConnection
     val autoCommit = connection.getAutoCommit
     connection setAutoCommit false
+
+    if (schema.isDefined) {
+      val stmt = connection.createStatement()
+      val setSchemaCommand = makeSetSchemaCommand(settings.driver, schema.get)
+      stmt.execute(setSchemaCommand)
+      stmt.close()
+    }
+
     connectionTL set connection
     try {
       val result = doWork
@@ -48,6 +63,15 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
   def getReader = ResultSetReader
 
+    val writeParams = WriteParams(
+      writer = MapWriter,
+      reader = MapReader,
+      fnc = fnc,
+      thns = SamePackageTypeHintNamingStrategy,
+      layout = layout
+    )
+
+
   def close = cpds.close()
 
 
@@ -56,7 +80,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
     val tableName = getTableName(obj)
 
-    val sql = JdbcCrudStorage.makeInsertQuery(tableName, data)
+    val sql = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
 
     val stmt = connection.prepareStatement(sql)
 
@@ -148,14 +172,19 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
   }}
 
   def getTableName[T <: Entity](obj: T): String = {
-    obj match {
+    val s = obj match {
       case obj: Obj => obj.className
       case obj: AbstractObj => obj.abstractClassName
     }
+    formatTableName(s)
+  }
+  
+  def formatTableName(s: String): String = {
+    writeParams.fnc.apply(Utils.splitFieldNameIntoParts(s))
   }
 
   def getTableName[T <: Entity](klass: Class[T]): String = {
-    klass.getSimpleName
+    formatTableName(klass.getSimpleName)
   }
 
   def select[T <: Obj, U <: Uniqueness](query: Query[T, U])(implicit qr: QueryResult[U]): qr.Result[T] = {
@@ -166,8 +195,8 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
   }
 
   def selectOne[T <: Obj, U <: Uniqueness](query: Query[T, U]): Option[T] = {
-    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
-    val sql = s"select * from ${getTableName(query.klass)} ${where}"
+    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
+    val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
     val stmt = connection.prepareStatement(sql)
     values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
@@ -188,8 +217,8 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
   }
 
   def selectMany[T <: Obj, U <: Uniqueness](query: Query[T, U])(implicit dummy: DummyImplicit): List[T] = {
-    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses)
-    val sql = s"select * from ${getTableName(query.klass)} ${where}"
+    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
+    val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
     val stmt = connection.prepareStatement(sql)
     values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
@@ -237,7 +266,7 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
     } finally {
       val after = System.currentTimeMillis()
       val time = after - before
-      println(sql + ", " + time + "ms")
+      logger.debug(sql + ", " + time + "ms")
     }
   }
 }
@@ -245,18 +274,22 @@ class JdbcCrudStorage(settings: DbSettings) extends CrudStorage {
 
 
 object JdbcCrudStorage {
-  def makeInsertQuery(table: String, data: mutable.HashMap[String, Any]): String ={
+  def makeInsertQuery(tableName: String, data: mutable.HashMap[String, Any], escape: String => String): String ={
+    val tableNameEscaped = escape(tableName)
+    val fieldNamesEscaped = data.keys.map(escape)
+    
     if (!data.isEmpty) {
-      s"insert into ${table}(${data.keys.mkString(", ")}) values(${data.keys.toSeq.map(x => "?").mkString(", ")})"
+      s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values(${data.keys.toSeq.map(x => "?").mkString(", ")})"
     } else {
-      s"insert into ${table} default values"
+      s"insert into ${tableNameEscaped} default values"
     }
   }
 
   import xtract.query._
 
-  def makeWhere(clauses: List[QueryClause[_]]): (String, List[Any]) = {
+  def makeWhere(clauses: List[QueryClause[_]], fnc: FieldNamingConvention, escape: String => String): (String, List[Any]) = {
     val values = ArrayBuffer[Any]()
+    def getFieldName(field: Entity#Field[_]) = escape(getFQName(field, fnc))
     val sql = "where " + clauses.map(_ match {
 //      case IsClause(field, klass) => {
 //        values += klass.newInstance().typeDiscriminator
@@ -285,8 +318,8 @@ object JdbcCrudStorage {
   }
 
 
-  def getFieldName(field: Entity#Field[_]): String = {
-    field.fqname(writeParams.thns).map(fnc.apply).mkString(layout.separator)
+  def getFQName(field: Entity#Field[_], fnc: FieldNamingConvention): String = {
+    field.fqname(SamePackageTypeHintNamingStrategy).map(fnc.apply).mkString(layout.separator)
   }
 
   def setParameter(stmt: PreparedStatement, index: Int, value: Any) {
@@ -299,14 +332,13 @@ object JdbcCrudStorage {
     }
   }
 
-  val fnc = LowerCase.delimitedBy(Underscore)
   val layout = FlatLayout("__")
 
-  val writeParams = WriteParams(
-    writer = MapWriter,
-    reader = MapReader,
-    fnc = fnc,
-    thns = SamePackageTypeHintNamingStrategy,
-    layout = layout
-  )
+//  val writeParams = WriteParams(
+//    writer = MapWriter,
+//    reader = MapReader,
+//    fnc = fnc,
+//    thns = SamePackageTypeHintNamingStrategy,
+//    layout = layout
+//  )
 }
