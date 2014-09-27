@@ -1,7 +1,8 @@
 package xtract
 
-import java.lang.reflect.Modifier
+import java.lang.reflect.{ParameterizedType, Modifier}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 object read extends Object with FieldTypeShortcuts {
@@ -38,12 +39,28 @@ object read extends Object with FieldTypeShortcuts {
   }
 
   def read2[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
-    if (classOf[Entity].isAssignableFrom(klass)) {
-      val entity = klass.newInstance().asInstanceOf[Entity]
-      reado(entity.fields, data, params)
-      entity.asInstanceOf[T]
-    } else {
-      readcc(klass, data, params)
+    klass match {
+      case _ if classOf[Entity].isAssignableFrom(klass) => {
+        val entity = klass.newInstance().asInstanceOf[Entity]
+        reado(entity.fields, data, params)
+        entity.asInstanceOf[T]
+      }
+      case _ if ClassUtils.isCaseClass(klass) => {
+        readcc(klass, data, params)
+      }
+      case _ if klass.isAssignableFrom(data.getClass) => {
+        data.asInstanceOf[T]
+      }
+    }
+  }
+
+  def readCollection(collectionClass: Class[_], itemClass: Class[_], xs: Traversable[_], params: ReadParams[_]): Any = {
+    val buffer = ArrayBuffer[Any]()
+    xs foreach { x =>
+      buffer += read1(itemClass, x, params.asInstanceOf[ReadParams[Any]])
+    }
+    collectionClass match {
+      case x if x == classOf[List[_]] => buffer.toList
     }
   }
 
@@ -59,10 +76,10 @@ object read extends Object with FieldTypeShortcuts {
 
     val companionObjectClass = ClassUtils.forName(companionObjectClassName) match {
       case Some(x) => x
-      case None => ??? /*uncomment this*/
-      /*instantiationException(
-          s"$className seems not to be a case class cause we couldn't find it's companion object class $companionObjectClassName"
-        )*/
+      case None => {
+        val msg = s"$className seems not to be a case class cause we couldn't find it's companion object class $companionObjectClassName"
+        throw new Exception(msg)
+      }
     }
 
     val companionObject = try {
@@ -135,6 +152,16 @@ object read extends Object with FieldTypeShortcuts {
                 fieldType match {
                   // simple
                   case _ if ClassUtils.toNotPrimitive(fieldType).isAssignableFrom(valueType) => value
+                  case _ if isCollection(fieldType) => {
+                    val collectionClass = fieldType
+                    val itemClass = getTypeArgumentOfParameterizedCaseClassField(klass, field.getName)
+                    value match {
+                      case collection: Traversable[_] => {
+                        readCollection(collectionClass, itemClass, collection, params)
+                      }
+                      case value => ???
+                    }
+                  }
                   // converters
                   case _ => {
                     val converterOpt = params.converters find { x =>
@@ -267,4 +294,32 @@ object read extends Object with FieldTypeShortcuts {
       case None => Left(key)
     }
   }
+
+  def isCollection(klass: Class[_]): Boolean = classOf[Traversable[_]].isAssignableFrom(klass)
+
+
+  def getTypeArgumentOfParameterizedCaseClassField(klass: Class[_], field: String): Class[_] = {
+    import scala.util.control.Exception._
+    catching(classOf[NoSuchMethodException]).opt(klass.getMethod(field)) match {
+      case Some(method) => {
+        method.getGenericReturnType match {
+          case tpe: ParameterizedType => {
+            tpe.getActualTypeArguments match {
+              case Array(tpe) => {
+                tpe match {
+                  case klass: Class[_] => klass
+                  case _ => ???
+                }
+              }
+              case _ => ???
+            }
+          }
+          case _ => ???
+        }
+      }
+      case None => ???
+    }
+  }
+
+
 }
