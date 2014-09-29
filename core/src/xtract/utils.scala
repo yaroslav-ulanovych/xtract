@@ -13,7 +13,13 @@ case class FirstNextCollection[T <: AnyRef](first: T, next: (T) => T) extends Tr
 }
 
 object Utils {
-  def splitFieldNameIntoParts(x: String): List[String] = x.split("""(?=\p{Lu})""").toList
+  def splitFieldNameIntoParts(x: String): List[String] = {
+    x.split("""(?=\p{Lu})""").toList match {
+      // drop initial empty string if field name starts with capital letter
+      case x :: xs if x == "" => xs
+      case x => x
+    }
+  }
 }
 
 object ClassUtils {

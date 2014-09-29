@@ -4,7 +4,7 @@ import java.sql.DriverManager
 import java.util.UUID
 
 import org.scalatest.{GivenWhenThen, Matchers, FunSuite}
-import xtract.query.Query
+import xtract.query.{SimpleFieldInClause, Query}
 import xtract._
 
 trait Account extends AbstractObj
@@ -228,6 +228,12 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
       storage.close
       conn.close()
     }
+  }
+
+  test("formatTableName") {
+    val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
+    val storage = new JdbcCrudStorage(dbSettings, fnc, None)
+    storage.formatTableName("RecordTagRelation") shouldBe "RECORD_TAG_RELATION"
   }
 
 }

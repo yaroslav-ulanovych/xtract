@@ -331,7 +331,8 @@ object JdbcCrudStorage {
       }
       case SimpleFieldInClause(field, xs) => {
         values ++= xs
-        s"""${getFieldName(field)} in (${xs.map(x => "?").mkString(", ")})"""
+        // we can't do xs.map(x => "?"), cause xs may be set
+        s"""${getFieldName(field)} in (${Array.fill(xs.size)("?").mkString(", ")})"""
       }
 //      case LinkFieldEqClause(field, value) => {
 //        values += value

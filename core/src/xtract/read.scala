@@ -51,6 +51,17 @@ object read extends Object with FieldTypeShortcuts {
       case _ if klass.isAssignableFrom(data.getClass) => {
         data.asInstanceOf[T]
       }
+      case _ => {
+        params.converters.find(x => x.canConvertFrom(data.getClass) && x.canConvertTo(klass)) match {
+          case Some(converter) => {
+            converter.convert(data, klass) match {
+              case Some(value) => value.asInstanceOf[T]
+              case None => throw new Exception(s"can't read ${klass.getName} from ${data.getClass.getName}($data) with converter $converter")
+            }
+          }
+          case None => throw new Exception(s"can't read ${klass.getName} from ${data.getClass.getName}($data)")
+        }
+      }
     }
   }
 
@@ -61,6 +72,8 @@ object read extends Object with FieldTypeShortcuts {
     }
     collectionClass match {
       case x if x == classOf[List[_]] => buffer.toList
+      case x if x == classOf[Seq[_]] => buffer.toSeq
+      case other => throw new Exception(s"${collectionClass.getName} isn't supported")
     }
   }
 
@@ -150,8 +163,7 @@ object read extends Object with FieldTypeShortcuts {
               case Some(value) => {
                 val valueType = value.getClass
                 fieldType match {
-                  // simple
-                  case _ if ClassUtils.toNotPrimitive(fieldType).isAssignableFrom(valueType) => value
+                  // collection
                   case _ if isCollection(fieldType) => {
                     val collectionClass = fieldType
                     val itemClass = getTypeArgumentOfParameterizedCaseClassField(klass, field.getName)
@@ -162,6 +174,8 @@ object read extends Object with FieldTypeShortcuts {
                       case value => ???
                     }
                   }
+                  // simple
+                  case _ if ClassUtils.toNotPrimitive(fieldType).isAssignableFrom(valueType) => value
                   // converters
                   case _ => {
                     val converterOpt = params.converters find { x =>
