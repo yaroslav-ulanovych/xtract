@@ -31,6 +31,7 @@ abstract sealed class QueryClause[Uniqueness]
 
 
 case class SimpleFieldEqClause[E <: Entity, V, U <: Uniqueness](field: E#SimpleField[V, U], value: V) extends QueryClause[U]
+case class SimpleFieldInClause[E <: Entity, V](field: E#SimpleField[V, _ <: Uniqueness], values: Traversable[V]) extends QueryClause[NotUnique]
 
 //case class LinkFieldEqClause[E <: Entity, V](field: E#LinkField[V], value: V) extends QueryClause
 //
@@ -56,6 +57,7 @@ object Query {
 
 case class SimpleFieldQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#SimpleField[T, U]) {
   def eqs(value: T) = SimpleFieldEqClause(field, value)
+  def in(values: T*) = SimpleFieldInClause[Entity, T](field, values)
 }
 
 //case class LinkFieldQueryClauseLeftOperand[T](field: Entity#LinkField[T]) {

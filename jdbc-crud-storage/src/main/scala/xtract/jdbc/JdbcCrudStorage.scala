@@ -299,6 +299,10 @@ object JdbcCrudStorage {
         values += value
         s"""${getFieldName(field)} = ?"""
       }
+      case SimpleFieldInClause(field, xs) => {
+        values ++= xs
+        s"""${getFieldName(field)} in (${xs.map(x => "?").mkString(", ")})"""
+      }
 //      case LinkFieldEqClause(field, value) => {
 //        values += value
 //        s"""${field.fqname} = ?"""

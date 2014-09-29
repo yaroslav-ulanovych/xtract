@@ -99,6 +99,37 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     }
   }
 
+  test("select in") {
+    val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
+    val conn = DriverManager.getConnection(dbSettings.url)
+    val stmt = conn.createStatement()
+    stmt.execute("create table user(id int primary key, name varchar);")
+    stmt.execute("insert into user values (1, 'John');")
+    stmt.execute("insert into user values (2, 'Sam');")
+    stmt.execute("insert into user values (3, 'Mary');")
+
+    val storage = new JdbcCrudStorage(dbSettings, fnc)
+
+    try {
+      storage.inTransaction {
+        import xtract.query.QueryDsl._
+
+        val users = storage.select(from[User].where(_.id in (1, 3)))
+
+        users.length shouldBe 2
+
+        users(0).id() shouldBe 1
+        users(0).name() shouldBe "John"
+
+        users(1).id() shouldBe 3
+        users(1).name() shouldBe "Mary"
+      }
+    } finally {
+      storage.close
+      conn.close
+    }
+  }
+
   test("bla") {
     val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
     val conn = DriverManager.getConnection(dbSettings.url)
