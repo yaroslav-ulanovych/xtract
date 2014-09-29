@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.StrictLogging
 import xtract._
 import xtract.query._
 
-import scala.collection.mutable
+import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
@@ -80,11 +80,11 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
 
     val tableName = getTableName(obj)
 
-    val sql = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
+    val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
 
     val stmt = connection.prepareStatement(sql)
 
-    data.values.zipWithIndex.foreach(kv => {
+    params.zipWithIndex.foreach(kv => {
       val value = kv._1
       val index = kv._2 + 1
       JdbcCrudStorage.setParameter(stmt, index, value)
@@ -93,6 +93,31 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
     executeStatement(sql, stmt.execute())
 
     stmt.close()
+  }
+
+  def insert[T <: Entity](xs: Traversable[T]) {
+    xs.headOption match {
+      case Some(head) => {
+        val data = xs.map(x => write(x, writeParams))
+
+        val tableName = getTableName(head)
+
+        val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
+
+        val stmt = connection.prepareStatement(sql)
+
+        params.zipWithIndex.foreach(kv => {
+          val value = kv._1
+          val index = kv._2 + 1
+          JdbcCrudStorage.setParameter(stmt, index, value)
+        })
+
+        executeStatement(sql, stmt.execute())
+
+        stmt.close()
+      }
+      case None =>
+    }
   }
 
 //  def create[T <: Entity with Id](entity: T): T = {
@@ -274,15 +299,20 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
 
 
 object JdbcCrudStorage {
-  def makeInsertQuery(tableName: String, data: mutable.HashMap[String, Any], escape: String => String): String ={
+//  def makeInsertQuery(tableName: String, data: MutableHashMap[String, Any], escape: String => String): String = {
+//    val tableNameEscaped = escape(tableName)
+//    val fieldNamesEscaped = data.keys.map(escape)
+//
+//    s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values(${data.keys.toSeq.map(x => "?").mkString(", ")})"
+//  }
+
+  def makeInsertQuery(tableName: String, data: Traversable[MutableHashMap[String, Any]], escape: String => String): (String, Seq[Any]) = {
+    val buffer = ArrayBuffer[Any]()
     val tableNameEscaped = escape(tableName)
-    val fieldNamesEscaped = data.keys.map(escape)
-    
-    if (!data.isEmpty) {
-      s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values(${data.keys.toSeq.map(x => "?").mkString(", ")})"
-    } else {
-      s"insert into ${tableNameEscaped} default values"
-    }
+    val fieldNamesEscaped = data.head.keys.map(escape)
+
+    val sql = s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values ${data.map(data => s"(${data.map({case (k, v) => buffer += v; "?"}).mkString(", ")})").mkString(", ")}"
+    (sql, buffer)
   }
 
   import xtract.query._

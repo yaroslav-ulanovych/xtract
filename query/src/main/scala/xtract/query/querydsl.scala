@@ -58,6 +58,7 @@ object Query {
 case class SimpleFieldQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#SimpleField[T, U]) {
   def eqs(value: T) = SimpleFieldEqClause(field, value)
   def in(values: T*) = SimpleFieldInClause[Entity, T](field, values)
+  def in(values: Traversable[T]) = SimpleFieldInClause[Entity, T](field, values)
 }
 
 //case class LinkFieldQueryClauseLeftOperand[T](field: Entity#LinkField[T]) {

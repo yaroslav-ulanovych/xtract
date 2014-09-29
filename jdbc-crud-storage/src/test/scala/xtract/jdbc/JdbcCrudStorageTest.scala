@@ -114,7 +114,7 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
       storage.inTransaction {
         import xtract.query.QueryDsl._
 
-        val users = storage.select(from[User].where(_.id in (1, 3)))
+        val users = storage.select(from[User].where(_.id in List(1, 3)))
 
         users.length shouldBe 2
 
@@ -128,6 +128,51 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
       storage.close
       conn.close
     }
+  }
+
+  test("insert multiple rows") {
+    val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
+    val conn = DriverManager.getConnection(dbSettings.url)
+    val stmt = conn.createStatement()
+    stmt.execute("create table user(id int primary key, name varchar);")
+
+    val storage = new JdbcCrudStorage(dbSettings, fnc)
+
+    storage.inTransaction {
+      import xtract.query.QueryDsl._
+
+      val user1 = new User
+
+      user1.id := 1
+      user1.name := "John"
+
+      val user2 = new User
+
+      user2.id := 2
+      user2.name := "Mary"
+
+      storage.insert(List(user1, user2))
+    }
+
+    storage.close
+
+    val rs = stmt.executeQuery("select * from user")
+
+    rs.next() shouldBe true
+
+    rs.getInt(1) shouldBe 1
+    rs.getString(2) shouldBe "John"
+
+    rs.next() shouldBe true
+
+    rs.getInt(1) shouldBe 2
+    rs.getString(2) shouldBe "Mary"
+
+    rs.next() shouldBe false
+
+    rs.close()
+    stmt.close()
+    conn.close()
   }
 
   test("bla") {
