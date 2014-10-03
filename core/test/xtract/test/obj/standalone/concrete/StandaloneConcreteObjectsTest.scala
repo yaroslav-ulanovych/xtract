@@ -29,7 +29,7 @@ class StandaloneConcreteObjectsTest extends FunSuite {
   }
 
   test("bad field value exception with converter") {
-    val converter = Converter[String, Int](x => None)
+    val converter = Converter[String, Int](x => None, _.toString)
 
     implicit val params = DefaultReadParams + converter
 

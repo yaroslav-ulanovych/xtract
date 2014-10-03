@@ -54,7 +54,7 @@ object read extends Object with FieldTypeShortcuts {
       case _ => {
         params.converters.find(x => x.canConvertFrom(data.getClass) && x.canConvertTo(klass)) match {
           case Some(converter) => {
-            converter.convert(data, klass) match {
+            converter.asInstanceOf[Converter[Any, Any]].convert(data, klass) match {
               case Some(value) => value.asInstanceOf[T]
               case None => throw new Exception(s"can't read ${klass.getName} from ${data.getClass.getName}($data) with converter $converter")
             }
@@ -183,7 +183,7 @@ object read extends Object with FieldTypeShortcuts {
                     }
                     converterOpt match {
                       case Some(converter) => {
-                        val option = converter.convert(value, fieldType)
+                        val option = converter.asInstanceOf[Converter[Any, Any]].convert(value, fieldType)
                         option match {
                           case Some(convertedValue) => convertedValue
                           case None => {
@@ -209,6 +209,19 @@ object read extends Object with FieldTypeShortcuts {
     }
   }
 
+  def isAssignable(dst: Class[_], src: Class[_]): Boolean = {
+    if (dst.isPrimitive) {
+      if (dst == classOf[Int] && src == classOf[java.lang.Integer]) return true
+      if (dst == classOf[Long] && src == classOf[java.lang.Long]) return true
+      if (dst == classOf[Float] && src == classOf[java.lang.Float]) return true
+      if (dst == classOf[Double] && src == classOf[java.lang.Double]) return true
+      if (dst == classOf[Boolean] && src == classOf[java.lang.Boolean]) return true
+      return false
+    } else {
+      dst.isAssignableFrom(src)
+    }
+  }
+
   def reado[Data](fields: Traversable[Entity#Field[_]], data: Data, params: ReadParams[Data]) {
     for(field <- fields) {
       field match {
@@ -217,12 +230,12 @@ object read extends Object with FieldTypeShortcuts {
           val key = params.layout.makeKey(field.getName().words, params.fnc)
           params.reader.get(data, key) match {
             case Some(v) => {
-              if (field.valueClass.isAssignableFrom(v.getClass)) {
+              if (isAssignable(field.valueClass, v.getClass)) {
                 field := v
               } else {
                 params.converters.find(x => x.canConvertFrom(v.getClass) && x.canConvertTo(field.valueClass)) match {
                   case Some(converter) => {
-                    converter.convert(v, field.valueClass) match {
+                    converter.asInstanceOf[Converter[Any, Any]].convert(v, field.valueClass) match {
                       case Some(value) => field := value
                       case None => throw BadFieldValueException(field.entity.getClass, key, field.valueClass, v, v.getClass, Some(converter))
                     }

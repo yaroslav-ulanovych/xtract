@@ -27,7 +27,20 @@ object write extends Object with FieldTypeShortcuts {
       field.asInstanceOf[Entity#Field[_]] match {
         case field_ : SimpleField => {
           val key = params.layout.makeKey(field.getName().words, params.fnc)
-          params.writer.put(data, key, field())
+          val value = field()
+          val valueClass = value.getClass
+
+          if (params.classAllowed(valueClass)) {
+            params.writer.put(data, key, value)
+          } else {
+            params.findConverterFrom(valueClass) match {
+              case Some(converter) => {
+                val convertedValue = converter.asInstanceOf[Converter[Any, Any]].convertBack(value)
+                params.writer.put(data, key, convertedValue)
+              }
+              case None => throw OtherWriteException(obj, s"${valueClass.getName} is not allowed in write output")
+            }
+          }
         }
         case field_ : obj.EmbeddedConcreteField[_] => {
           val field = field_.asInstanceOf[obj.EmbeddedConcreteField[Obj]]

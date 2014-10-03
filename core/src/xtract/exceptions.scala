@@ -20,7 +20,7 @@ case class BadFieldValueException(
   fieldType: Class[_],
   value: Any,
   valueType: Class[_],
-  converter: Option[Converter]
+  converter: Option[Converter[_, _]]
 ) extends ReadException(
   klass,
   s"bad value for $field field, expected ${fieldType.getSimpleName}, got ${valueType.getSimpleName}($value), converter: $converter"
@@ -49,3 +49,8 @@ case class BadTypeHintException(
   klass,
   s"bad type hint for $field field of ${fieldType.getName}: $typeHint"
 )
+
+abstract class WriteException(data: Any, msg: String) extends Exception(
+  s"error writing $data: $msg")
+
+case class OtherWriteException(data: Any, msg: String) extends WriteException(data, msg)

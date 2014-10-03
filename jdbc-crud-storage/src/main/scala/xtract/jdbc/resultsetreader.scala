@@ -2,7 +2,6 @@ package xtract.jdbc
 
 import java.sql.{ResultSet, Types => SqlTypes}
 
-import xtract.BuiltInConverters.IntegerToInt
 import xtract._
 
 
@@ -20,11 +19,3 @@ object ResultSetReader extends Reader[ResultSet] {
     Some(result)
   }
 }
-
-object ResultSetParams extends ReadParams[ResultSet](
-  reader = ResultSetReader,
-  layout = FlatLayout("__"),
-  thns = SamePackageTypeHintNamingStrategy,
-  fnc = FieldNamingConvention(LowerCase, Underscore),
-  converters = Seq(IntegerToInt)
-)

@@ -14,7 +14,12 @@ import scala.reflect.ClassTag
 
 case class DbSettings(driver: String, url: String, user: String, password: String)
 
-class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: Option[String] = None) extends CrudStorage with StrictLogging {
+class JdbcCrudStorage(
+  settings: DbSettings,
+  fnc: FieldNamingConvention,
+  schema: Option[String] = None,
+  converters: Seq[Converter[_, _]] = Seq()
+) extends CrudStorage with StrictLogging {
   import JdbcCrudStorage._
 
   val functions = settings.driver match {
@@ -63,14 +68,23 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
 
   def getReader = ResultSetReader
 
-    val writeParams = WriteParams(
-      writer = MapWriter,
-      reader = MapReader,
-      fnc = fnc,
-      thns = SamePackageTypeHintNamingStrategy,
-      layout = layout
-    )
+  val writeParams = WriteParams(
+    writer = MapWriter,
+    reader = MapReader,
+    fnc = fnc,
+    thns = SamePackageTypeHintNamingStrategy,
+    layout = layout,
+    allowedClasses = DefaultWriteParams.allowedClasses,
+    converters = converters
+  )
 
+  val readParams = ReadParams(
+    reader = ResultSetReader,
+    layout = layout,
+    thns = SamePackageTypeHintNamingStrategy,
+    fnc = fnc,
+    converters = converters
+  )
 
   def close = cpds.close()
 
@@ -228,7 +242,7 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
     val rs = executeStatement(sql, stmt.executeQuery())
 
     val result = if (rs.next()) {
-      val obj = xtract.read.read1(query.klass, rs, ResultSetParams)
+      val obj = xtract.read.read1(query.klass, rs, readParams)
       if (rs.next()) throw new RuntimeException("expected unique result")
       Some(obj)
     } else {
@@ -252,7 +266,7 @@ class JdbcCrudStorage(settings: DbSettings, fnc: FieldNamingConvention, schema: 
     val result = ArrayBuffer[T]()
 
     while (rs.next) {
-      val obj = xtract.read.read1(query.klass, rs, ResultSetParams)
+      val obj = xtract.read.read1(query.klass, rs, readParams)
       result += obj
     }
 
@@ -362,6 +376,7 @@ object JdbcCrudStorage {
       case value: Int => stmt.setInt(index, value)
       case value: Long => stmt.setLong(index, value)
       case value: String => stmt.setString(index, value)
+      case value: java.sql.Timestamp => stmt.setTimestamp(index, value)
       case value: java.util.Date => stmt.setTimestamp(index, new java.sql.Timestamp(value.getTime))
       case any => throw new UnsupportedOperationException(s"${any.getClass.getCanonicalName} isn't supported")
     }
