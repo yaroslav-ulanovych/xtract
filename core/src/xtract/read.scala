@@ -118,7 +118,7 @@ object read extends Object with FieldTypeShortcuts {
         fieldType match {
           // embedded
 //          case _ if ClassUtils.isCaseClass(fieldType) => {
-//            val key = params.layout.makeKey(fieldName, None, params.fnc)
+//            val key = params.layout.makeKey(fieldName, params.fnc)
 //            params.layout.dive(data, key, params) match {
 //              case Some(Right((data, layout))) => {
 //                if (reader.accepts(data.getClass)) {
@@ -191,7 +191,7 @@ object read extends Object with FieldTypeShortcuts {
                           }
                         }
                       }
-                      case None => ??? //badFieldValue(klass, key, fieldType, value, valueType, None)
+                      case None => throw BadFieldValueException(klass, key, fieldType, value, valueType, None)
                     }
                   }
                 }
