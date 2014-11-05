@@ -205,15 +205,15 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
 //    data
   }
 
-  implicit def toHasAutoIncMethod[T, U <: Uniqueness](field: Entity#SimpleField[T, U, NotAutoInc]) = new {
+  implicit def toHasAutoIncMethod[T, U <: Uniqueness](field: SimpleField[T, U, NotAutoInc]) = new {
     def autoInc = {
       field.setAutoInc()
-      field.asInstanceOf[Entity#SimpleField[T, U, AutoInc]]
+      field.asInstanceOf[SimpleField[T, U, AutoInc]]
     }
   }
 
-  implicit def toHasUniqueMethod[T, U <: AutoIncness](field: Entity#SimpleField[T, NotUnique, U]) = new {
-    def unique = field.asInstanceOf[Entity#SimpleField[T, Unique, U]]
+  implicit def toHasUniqueMethod[T, U <: AutoIncness](field: SimpleField[T, NotUnique, U]) = new {
+    def unique = field.asInstanceOf[SimpleField[T, Unique, U]]
   }
 }
 
