@@ -103,13 +103,15 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
 
   abstract sealed class AbstractSimpleField[T: ClassTag] extends Field[T]
 
-  final class SimpleField[T: ClassTag, Uniqueness] extends AbstractSimpleField[T] {
+  final class SimpleField[T: ClassTag, Uniqueness, AutoIncness] extends AbstractSimpleField[T] {
+    private var autoInc: Boolean = false
     def this(dflt: T) {
       this()
       this := dflt
     }
 
-    def unique = this.asInstanceOf[SimpleField[T, Unique]]
+    def isAutoInc = autoInc
+    private[Entity] def setAutoInc() = autoInc = true
   }
 
   abstract sealed class EmbeddedField[T <: Entity: ClassTag] extends Field[T] {
@@ -202,6 +204,17 @@ abstract sealed class Entity extends Object with Embeddable with Shortcuts {
 //
 //    data
   }
+
+  implicit def toHasAutoIncMethod[T, U <: Uniqueness](field: Entity#SimpleField[T, U, NotAutoInc]) = new {
+    def autoInc = {
+      field.setAutoInc()
+      field.asInstanceOf[Entity#SimpleField[T, U, AutoInc]]
+    }
+  }
+
+  implicit def toHasUniqueMethod[T, U <: AutoIncness](field: Entity#SimpleField[T, NotUnique, U]) = new {
+    def unique = field.asInstanceOf[Entity#SimpleField[T, Unique, U]]
+  }
 }
 
 
@@ -255,15 +268,15 @@ trait Embeddable {
 trait Shortcuts {
   self: Entity =>
 
-  def field[T <: Any: ClassTag] = new SimpleField[T, NotUnique]
-  def field[T <: Any: ClassTag](dflt: T) = new SimpleField[T, NotUnique](dflt)
+  def field[T <: Any: ClassTag] = new SimpleField[T, NotUnique, NotAutoInc]
+  def field[T <: Any: ClassTag](dflt: T) = new SimpleField[T, NotUnique, NotAutoInc](dflt)
 
-  def int = new SimpleField[Int, NotUnique]
-  def long = new SimpleField[Long, NotUnique]
-  def float = new SimpleField[Float, NotUnique]
-  def double = new SimpleField[Double, NotUnique]
-  def string = new SimpleField[String, NotUnique]
-  def bool = new SimpleField[Boolean, NotUnique]
+  def int = new SimpleField[Int, NotUnique, NotAutoInc]
+  def long = new SimpleField[Long, NotUnique, NotAutoInc]
+  def float = new SimpleField[Float, NotUnique, NotAutoInc]
+  def double = new SimpleField[Double, NotUnique, NotAutoInc]
+  def string = new SimpleField[String, NotUnique, NotAutoInc]
+  def bool = new SimpleField[Boolean, NotUnique, NotAutoInc]
 
   def link[T <: Entity with Id](implicit ClassTag: ClassTag[T#Id]) = new LinkField[T#Id]
   def embedded[T <: Obj](implicit dummy: DummyImplicit, classTag: ClassTag[T]) = new EmbeddedConcreteField[T]
@@ -274,7 +287,7 @@ trait Shortcuts {
 
 trait FieldTypeShortcuts {
   type Field = Entity#Field[_]
-  type SimpleField = Entity#SimpleField[_, _]
+  type SimpleField = Entity#SimpleField[_, _, _]
   type EmbeddedField = Entity#EmbeddedField[_]
   type EmbeddedConcreteField = Entity#EmbeddedConcreteField[_]
   type EmbeddedPolymorphicField = Entity#EmbeddedPolymorphicField[AbstractObj]

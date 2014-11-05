@@ -109,6 +109,70 @@ class JdbcCrudStorage(
     stmt.close()
   }
 
+  //  def create[T <: Entity with Id](entity: T): T = {
+  //    val data = entity.write(writeParams)
+  //    val sql = JdbcCrudStorage.makeInsertQuery(entity.className, data)
+  //    println(sql)
+  //
+  //    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+  //
+  //    data.values.zipWithIndex.foreach(kv => {
+  //      val value = kv._1
+  //      val index = kv._2 + 1
+  //      JdbcCrudStorage.setParameter(stmt, index, value)
+  //    })
+  //
+  //    executeStatement(sql, stmt.execute())
+  //
+  //    // get the auto-generated id
+  //    val rs = stmt.getGeneratedKeys
+  //    rs.next()
+  //    xtract.read.reado(List(entity.id), rs, ResultSetParams)
+  //    rs.close()
+  //
+  //    stmt.close()
+  //
+  //    entity
+  //  }
+
+  def insert[T <: Entity](obj: T) {
+    val (autoIncFields, notAutoIncFields) = obj.fields.partition({
+      case field: obj.SimpleField[_, _, _] if field.isAutoInc => true
+      case _ => false
+    })
+
+    val data = write.writeObj(obj, notAutoIncFields, DefaultWriteParams.writer.create, writeParams)
+
+    val tableName = getTableName(obj)
+
+    val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
+
+    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+
+    params.zipWithIndex.foreach(kv => {
+      val value = kv._1
+      val index = kv._2 + 1
+      JdbcCrudStorage.setParameter(stmt, index, value)
+    })
+
+    executeStatement(sql, stmt.execute())
+
+    autoIncFields.length match {
+      case 0 =>
+      case 1 => {
+        // get the auto-generated id
+        val rs = stmt.getGeneratedKeys
+        rs.next()
+        val value = ResultSetReader.get(rs, rs.getMetaData.getColumnName(1)).get
+        autoIncFields(0).asInstanceOf[Entity#Field[Any]] := value
+        rs.close()
+      }
+      case _ => throw new Exception("more than 1 auto inc column not supported")
+    }
+
+    stmt.close()
+  }
+
   def insert[T <: Entity](xs: Traversable[T]) {
     xs.headOption match {
       case Some(head) => {
@@ -133,32 +197,6 @@ class JdbcCrudStorage(
       case None =>
     }
   }
-
-//  def create[T <: Entity with Id](entity: T): T = {
-//    val data = entity.write(writeParams)
-//    val sql = JdbcCrudStorage.makeInsertQuery(entity.className, data)
-//    println(sql)
-//
-//    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
-//
-//    data.values.zipWithIndex.foreach(kv => {
-//      val value = kv._1
-//      val index = kv._2 + 1
-//      JdbcCrudStorage.setParameter(stmt, index, value)
-//    })
-//
-//    executeStatement(sql, stmt.execute())
-//
-//    // get the auto-generated id
-//    val rs = stmt.getGeneratedKeys
-//    rs.next()
-//    xtract.read.reado(List(entity.id), rs, ResultSetParams)
-//    rs.close()
-//
-//    stmt.close()
-//
-//    entity
-//  }
 
   def read[T <: Entity with Id : Manifest](id: T#Id): Option[T] = {
     ???

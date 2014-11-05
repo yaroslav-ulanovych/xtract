@@ -30,8 +30,8 @@ abstract sealed class QueryClause[Uniqueness]
 //}
 
 
-case class SimpleFieldEqClause[E <: Entity, V, U <: Uniqueness](field: E#SimpleField[V, U], value: V) extends QueryClause[U]
-case class SimpleFieldInClause[E <: Entity, V](field: E#SimpleField[V, _ <: Uniqueness], values: Traversable[V]) extends QueryClause[NotUnique]
+case class SimpleFieldEqClause[E <: Entity, V, U <: Uniqueness, W <: AutoIncness](field: E#SimpleField[V, U, W], value: V) extends QueryClause[U]
+case class SimpleFieldInClause[E <: Entity, V](field: E#SimpleField[V, _ <: Uniqueness, _ <: AutoIncness], values: Traversable[V]) extends QueryClause[NotUnique]
 
 //case class LinkFieldEqClause[E <: Entity, V](field: E#LinkField[V], value: V) extends QueryClause
 //
@@ -55,7 +55,7 @@ object Query {
 
 
 
-case class SimpleFieldQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#SimpleField[T, U]) {
+case class SimpleFieldQueryClauseLeftOperand[T, U <: Uniqueness, V <: AutoIncness](field: Entity#SimpleField[T, U, V]) {
   def eqs(value: T) = SimpleFieldEqClause(field, value)
   def in(values: T*) = SimpleFieldInClause[Entity, T](field, values)
   def in(values: Traversable[T]) = SimpleFieldInClause[Entity, T](field, values)
@@ -85,7 +85,7 @@ object QueryDsl {
 
 //  implicit def singleWhereClauseToListOfThem(x: QueryClause) = List(x)
 
-  implicit def simpleFieldToQueryClauseLeftOperand[T, U <: Uniqueness](field: Entity#SimpleField[T, U]) = SimpleFieldQueryClauseLeftOperand(field)
+  implicit def simpleFieldToQueryClauseLeftOperand[T, U <: Uniqueness, V <: AutoIncness](field: Entity#SimpleField[T, U, V]) = SimpleFieldQueryClauseLeftOperand(field)
 
   implicit def xx = new UniqueQueryResult
   implicit def xxx = new NotUniqueQueryResult

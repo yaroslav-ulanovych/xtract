@@ -23,7 +23,11 @@ object write extends Object with FieldTypeShortcuts {
   }
 
   def writeObj[T <: Entity, U](obj: T, data: U, params: WriteParams[U]): U = {
-    for(field <- obj.fields) {
+    writeObj(obj, obj.fields, data, params)
+  }
+
+  def writeObj[T <: Entity, U](obj: T, fields: Seq[Entity#Field[_]], data: U, params: WriteParams[U]): U = {
+    for(field <- fields) {
       field.asInstanceOf[Entity#Field[_]] match {
         case field_ : SimpleField => {
           val key = params.layout.makeKey(field.getName().words, params.fnc)
