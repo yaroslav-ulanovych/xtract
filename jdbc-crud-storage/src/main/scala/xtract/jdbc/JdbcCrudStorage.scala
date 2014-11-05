@@ -242,7 +242,7 @@ class JdbcCrudStorage(
     val rs = executeStatement(sql, stmt.executeQuery())
 
     val result = if (rs.next()) {
-      val obj = xtract.read.read1(query.klass, rs, readParams)
+      val obj = xtract.read.readAny(query.klass, rs, readParams)
       if (rs.next()) throw new RuntimeException("expected unique result")
       Some(obj)
     } else {
@@ -266,7 +266,7 @@ class JdbcCrudStorage(
     val result = ArrayBuffer[T]()
 
     while (rs.next) {
-      val obj = xtract.read.read1(query.klass, rs, readParams)
+      val obj = xtract.read.readAny(query.klass, rs, readParams)
       result += obj
     }
 

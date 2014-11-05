@@ -18,8 +18,8 @@ class StandaloneConcreteCaseClassesTest extends FunSuite {
     }
   }
 
-  test("lists") {
-    val a = read[A] from Map("xs" -> Vector("a", "b"))
-    a shouldBe A(List("a", "b"))
-  }
+//  test("lists") {
+//    val a = read[A] from Map("xs" -> Vector("a", "b"))
+//    a shouldBe A(List("a", "b"))
+//  }
 }

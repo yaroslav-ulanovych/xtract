@@ -9,66 +9,51 @@ object read extends Object with FieldTypeShortcuts {
 
   def apply[T](implicit classTag: ClassTag[T]) = new {
     def from[U](data: U)(implicit params: ReadParams[U] = DefaultReadParams): T = {
-      read1(classTag.runtimeClass.asInstanceOf[Class[T]], data, params)
+      readAny(classTag.runtimeClass.asInstanceOf[Class[T]], data, params)
     }
   }
 
-  def read1[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
-    if (ClassUtils.isAbstract(klass)) {
-      val typeHint = getTypeHint(data, params) match {
-        case Right(Right(typeHint)) => typeHint
-        case Right(Left(x)) => ???
-        case Left => ???
-      }
-      params.thns.guessType(klass, typeHint) match {
-        case Some(klass) => {
-          params.layout.dive2(data, params.fnc.apply(List(typeHint)), params) match {
-            case Some(Right((data, layout))) => {
-              read2(klass.asInstanceOf[Class[T]], data, params + layout)
-            }
-            case Some(Left(x)) => ???
-            case None => ???
-          }
-
-        }
-        case None => ???
-      }
-    } else {
-      read2(klass, data, params)
-    }
-  }
-
-  def read2[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
+  def readAny[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
     klass match {
+      case _ if ClassUtils.isAbstract(klass) && !klass.isPrimitive => {
+        readPolymorphic(klass, data, params)
+      }
       case _ if classOf[Entity].isAssignableFrom(klass) => {
         val entity = klass.newInstance().asInstanceOf[Entity]
-        reado(entity.fields, data, params)
+        readObject(entity, entity.fields, data, params)
         entity.asInstanceOf[T]
       }
       case _ if ClassUtils.isCaseClass(klass) => {
-        readcc(klass, data, params)
+        readCaseClass(klass, data, params)
       }
-      case _ if klass.isAssignableFrom(data.getClass) => {
-        data.asInstanceOf[T]
-      }
-      case _ => {
-        params.converters.find(x => x.canConvertFrom(data.getClass) && x.canConvertTo(klass)) match {
-          case Some(converter) => {
-            converter.asInstanceOf[Converter[Any, Any]].convert(data, klass) match {
-              case Some(value) => value.asInstanceOf[T]
-              case None => throw new Exception(s"can't read ${klass.getName} from ${data.getClass.getName}($data) with converter $converter")
-            }
+    }
+  }
+
+  def readPolymorphic[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
+    val typeHint = getTypeHint(data, params) match {
+      case (Some(Right(typeHint)), _) => typeHint
+      case (Some(Left(x)), _) => ???
+      case (None, key) => throw new MissingTypeHintException(klass, key, classOf[String], data)
+    }
+    params.thns.guessType(klass, typeHint) match {
+      case Some(klass) => {
+        params.layout.dive2(data, params.fnc.apply(List(typeHint)), params) match {
+          case Some(Right((data, layout))) => {
+            readAny(klass.asInstanceOf[Class[T]], data, params + layout)
           }
-          case None => throw new Exception(s"can't read ${klass.getName} from ${data.getClass.getName}($data)")
+          case Some(Left(x)) => ???
+          case None => ???
         }
+
       }
+      case None => ???
     }
   }
 
   def readCollection(collectionClass: Class[_], itemClass: Class[_], xs: Traversable[_], params: ReadParams[_]): Any = {
     val buffer = ArrayBuffer[Any]()
     xs foreach { x =>
-      buffer += read1(itemClass, x, params.asInstanceOf[ReadParams[Any]])
+      buffer += readAny(itemClass, x, params.asInstanceOf[ReadParams[Any]])
     }
     collectionClass match {
       case x if x == classOf[List[_]] => buffer.toList
@@ -77,7 +62,7 @@ object read extends Object with FieldTypeShortcuts {
     }
   }
 
-  private def readcc[E, T](klass: Class[E], data: T, params: ReadParams[T]): E = {
+  private def readCaseClass[E, T](klass: Class[E], data: T, params: ReadParams[T]): E = {
     val className = klass.getName
 
     val endsWithNumberRegex = """^(.+)(\d+)$""".r
@@ -116,89 +101,33 @@ object read extends Object with FieldTypeShortcuts {
       val args = caseClassFields zip argTypes map { case (field, fieldType) =>
         val fieldName = Utils.splitFieldNameIntoParts(field.getName)
         fieldType match {
-          // embedded
-//          case _ if ClassUtils.isCaseClass(fieldType) => {
-//            val key = params.layout.makeKey(fieldName, params.fnc)
-//            params.layout.dive(data, key, params) match {
-//              case Some(Right((data, layout))) => {
-//                if (reader.accepts(data.getClass)) {
-//                  readcc(fieldType, data, params + layout)
-//                } else {
-//                  ??? //badFieldValue(klass, key, fieldType, data, data.getClass, None)
-//                }
-//              }
-//              case None => throw new MissingFieldException(klass, key, data)
-//            }
-//          }
-          // embedded polymorphic
-//          case _ if ClassUtils.isAbstract(fieldType) && !fieldType.isPrimitive => {
-//            val typeHint = getTypeHint(data, params)
-//            typeHint match {
-//              case Right(Right(typeHint)) => {
-//                val tpe = params.thns.guessType(fieldType, typeHint)
-//                tpe match {
-//                  case Some(klass) => {
-//                    val key = params.diver.makeKey(fieldName, Some(typeHint), params.fnc)
-//                    params.layout.dive(data, key, params) match {
-//                      case Some(Right((data, layout))) => {
-//                        if (reader.accepts(data.getClass)) {
-//                          readcc(klass, data, params + layout)
-//                        } else {
-//                          ??? //badFieldValue(klass, key, fieldType, data, data.getClass, None)
-//                        }
-//                      }
-//                      case None => throw new MissingFieldException(klass, key, data)
-//                    }
-//                  }
-//                  case None => ??? //throw new ReadException("bad type hint: " + typeHint)
-//                }
-//              }
-//              case Right(Left(x)) => ??? //badFieldValue(klass, key + "#typehint", classOf[String], x, x.getClass, None)
-//              case Left => throw MissingFieldException(klass, "#typehint", data)
-//            }
-//          }
-          case _ => {
+          case _ if ClassUtils.isAbstract(fieldType) && !fieldType.isPrimitive => {
             val key = params.layout.makeKey(fieldName, params.fnc)
-            reader.get(data, key) match {
-              case Some(value) => {
-                val valueType = value.getClass
-                fieldType match {
-                  // collection
-                  case _ if isCollection(fieldType) => {
-                    val collectionClass = fieldType
-                    val itemClass = getTypeArgumentOfParameterizedCaseClassField(klass, field.getName)
-                    value match {
-                      case collection: Traversable[_] => {
-                        readCollection(collectionClass, itemClass, collection, params)
-                      }
-                      case value => ???
-                    }
-                  }
-                  // simple
-                  case _ if ClassUtils.toNotPrimitive(fieldType).isAssignableFrom(valueType) => value
-                  // converters
-                  case _ => {
-                    val converterOpt = params.converters find { x =>
-                      x.canConvertFrom(valueType) && x.canConvertTo(fieldType)
-                    }
-                    converterOpt match {
-                      case Some(converter) => {
-                        val option = converter.asInstanceOf[Converter[Any, Any]].convert(value, fieldType)
-                        option match {
-                          case Some(convertedValue) => convertedValue
-                          case None => {
-                            ??? //badFieldValue(klass, key, fieldType, value, valueType, Some(converter))
-                          }
-                        }
-                      }
-                      case None => throw BadFieldValueException(klass, key, fieldType, value, valueType, None)
-                    }
-                  }
-                }
+            params.layout.dive1(data, key, params) match {
+              case Some(Right((data, layout))) => {
+                readPolymorphic(fieldType, data, params + layout)
               }
-              case None => throw new MissingFieldException(klass, key, data)
+              case Some(Left(value)) => throw new BadFieldValueException(klass, key, fieldType, value, value.getClass, None)
+              case None => throw new MissingFieldException(klass, key, fieldType, data)
             }
           }
+          // embedded case class
+          case _ if ClassUtils.isCaseClass(fieldType) => {
+            val key = params.layout.makeKey(fieldName, params.fnc)
+            params.layout.dive1(data, key, params) match {
+              case Some(Right((data, layout))) => {
+                readCaseClass(fieldType, data, params + layout)
+              }
+              case Some(Left(value)) => {
+                throw new BadFieldValueException(klass, field.getName, fieldType, value, value.getClass, None)
+              }
+              case None => {
+                throw new MissingFieldException(klass, field.getName, fieldType, data)
+              }
+            }
+          }
+          case _ =>
+            readSimpleField(klass, fieldType, fieldName, params, data)
         }
       }
       val castArgs = args.asInstanceOf[Array[Object]]
@@ -222,30 +151,37 @@ object read extends Object with FieldTypeShortcuts {
     }
   }
 
-  def reado[Data](fields: Traversable[Entity#Field[_]], data: Data, params: ReadParams[Data]) {
-    for(field <- fields) {
-      field match {
-        case field_ : SimpleField => {
-          val field = field_.asInstanceOf[Entity#Field[Any]]
-          val key = params.layout.makeKey(field.getName().words, params.fnc)
-          params.reader.get(data, key) match {
-            case Some(v) => {
-              if (isAssignable(field.valueClass, v.getClass)) {
-                field := v
-              } else {
-                params.converters.find(x => x.canConvertFrom(v.getClass) && x.canConvertTo(field.valueClass)) match {
-                  case Some(converter) => {
-                    converter.asInstanceOf[Converter[Any, Any]].convert(v, field.valueClass) match {
-                      case Some(value) => field := value
-                      case None => throw BadFieldValueException(field.entity.getClass, key, field.valueClass, v, v.getClass, Some(converter))
-                    }
-                  }
-                  case None => throw BadFieldValueException(field.entity.getClass, key, field.valueClass, v, v.getClass, None)
+  def readSimpleField[T](root: Class[_], fieldType: Class[_], name: List[String], params: ReadParams[T], data: T): Any = {
+    val key = params.layout.makeKey(name, params.fnc)
+    params.reader.get(data, key) match {
+      case Some(value) => {
+        if (isAssignable(fieldType, value.getClass)) {
+          value
+        } else {
+          params.converters.find(x => x.canConvertFrom(data.getClass) && x.canConvertTo(fieldType)) match {
+            case Some(converter) => {
+              converter.asInstanceOf[Converter[Any, Any]].convert(data, fieldType) match {
+                case Some(value) => {
+                  value
                 }
+                case None => throw new BadFieldValueException(root, key, fieldType, value, value.getClass, Some(converter))
               }
             }
-            case None => throw new MissingFieldException(field.entity.getClass, key, data)
+            case None => throw new BadFieldValueException(root, key, fieldType, value, value.getClass, None)
           }
+        }
+      }
+      case None => throw new MissingFieldException(root, key, fieldType, data)
+    }
+  }
+
+  def readObject[Data](obj: Entity, fields: Traversable[Entity#Field[_]], data: Data, params: ReadParams[Data]) {
+    for(field <- fields) {
+      field match {
+        case fld : SimpleField => {
+          val field = fld.asInstanceOf[Entity#Field[Any]]
+          val value = readSimpleField(obj.getClass, field.valueClass, field.getName().words, params, data)
+          field := value
         }
 //        case field_ : Entity#CustomField[_, _] => {
 //          val field = field_.asInstanceOf[Entity#CustomField[Any, Any]]
@@ -283,7 +219,7 @@ object read extends Object with FieldTypeShortcuts {
           val field = field_.asInstanceOf[Entity#EmbeddedPolymorphicField[AbstractObj]]
           params.layout.dive1(data, params.fnc.apply(field.getName().words), params) match {
             case Some(Right((data, layout))) => {
-              field := read1(field.valueClass, data, params + layout)
+              field := readAny(field.valueClass, data, params + layout)
             }
             case Some(Left(v)) => ???
             case None => throw MissingTypeHintException(field.entity.getClass, field.getName().words.mkString, field.valueClass, data)
@@ -313,12 +249,12 @@ object read extends Object with FieldTypeShortcuts {
   }
 
 
-  def getTypeHint[T](data: T, params: ReadParams[T]): Either[String, Either[Any, String]] = {
+  def getTypeHint[T](data: T, params: ReadParams[T]): (Option[Either[Any, String]], String) = {
     val key = params.layout.makeKey(List("type"), params.fnc)
     params.reader.get(data, key) match {
-      case Some(x: String) => Right(Right(x))
-      case Some(x) => Right(Left(x))
-      case None => Left(key)
+      case Some(x: String) => (Some(Right(x)), key)
+      case Some(x) => (Some(Left(x)), key)
+      case None => (None, key)
     }
   }
 

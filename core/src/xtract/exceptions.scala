@@ -9,9 +9,11 @@ object instantiationException {
 case class MissingFieldException(
   klass: Class[_],
   field: String,
+  fieldType: Class[_],
   data: Any
-) extends Exception(
-  s"error reading ${klass.getName}, missing field $field in $data"
+) extends ReadException(
+  klass,
+  s"missing field $field: ${fieldType.getName} in $data"
 )
 
 case class BadFieldValueException(
