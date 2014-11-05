@@ -26,6 +26,8 @@ object read extends Object with FieldTypeShortcuts {
       case _ if ClassUtils.isCaseClass(klass) => {
         readCaseClass(klass, data, params)
       }
+      case _ if isAssignable(klass, data.getClass) => data.asInstanceOf[T]
+
     }
   }
 
