@@ -160,9 +160,9 @@ object read extends Object with FieldTypeShortcuts {
         if (isAssignable(fieldType, value.getClass)) {
           value
         } else {
-          params.converters.find(x => x.canConvertFrom(data.getClass) && x.canConvertTo(fieldType)) match {
+          params.converters.find(x => x.canConvertFrom(value.getClass) && x.canConvertTo(fieldType)) match {
             case Some(converter) => {
-              converter.asInstanceOf[Converter[Any, Any]].convert(data, fieldType) match {
+              converter.asInstanceOf[Converter[Any, Any]].convert(value, fieldType) match {
                 case Some(value) => {
                   value
                 }

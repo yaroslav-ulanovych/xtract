@@ -14,7 +14,7 @@ class StandaloneConcreteCaseClassesTest extends FunSuite {
 
   test("bad field value exception") {
     intercept[BadFieldValueException] {
-      val settings = read[Settings] from Map("host" -> 127001, "port" -> 8080)
+      read[Settings] from Map("host" -> "localhost", "port" -> "8080")
     }
   }
 

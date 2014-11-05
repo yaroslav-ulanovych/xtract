@@ -15,6 +15,18 @@ class StandaloneConcreteObjectsTest extends FunSuite {
     settings.port() shouldBe 8080
   }
 
+  test("bad field value exception") {
+    intercept[BadFieldValueException] {
+      read[Settings] from Map("host" -> "localhost", "port" -> "8080")
+    }
+  }
+
+//  test("converters") {
+//    val converter = Converter[String, Int](x => StringUtils.parseInt(x), _.toString)
+//    implicit val params = DefaultReadParams + converter
+//    read[Settings] from Map("host" -> "localhost", "port" -> "8080")
+//  }
+
 
   //  test("write to nested layout") {
 //    val rect = new Settings
