@@ -53,6 +53,14 @@ object write extends Object with FieldTypeShortcuts {
           val entity = field()
           writeObj(entity, data2, params + layout)
         }
+        case fld: obj.EmbeddedPolymorphicField[_] => {
+          val field = fld.asInstanceOf[obj.EmbeddedPolymorphicField[AbstractObj]]
+          val key = params.layout.makeKey(field.getName().words, params.fnc)
+          val (data2, layout) = params.layout.dive1(data, key, params)
+          params.writer.put(data2, "type", "Foo")
+          val (data3, layout3) = params.layout.dive2(data2, "args", params + layout)
+          writeObj(field(), data3, params + layout3)
+        }
       }
     }
     data

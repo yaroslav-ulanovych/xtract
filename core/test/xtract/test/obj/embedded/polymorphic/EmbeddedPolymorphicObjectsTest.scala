@@ -47,4 +47,18 @@ class EmbeddedPolymorphicObjectsTest extends FunSuite {
     rectangle.width() shouldBe 4
     rectangle.height() shouldBe 2
   }
+
+  test("write to flat layout") {
+    val rectangle = new Rectangle
+    rectangle.width := 4
+    rectangle.height := 2
+    val holder = new Holder
+    holder.figure := rectangle
+    val map = write(holder, DefaultWriteParams + FlatLayout("/"))
+    map shouldBe Map(
+      "figure/type" -> "Rectangle",
+      "figure/rectangle/width" -> 4,
+      "figure/rectangle/height" -> 2
+    )
+  }
 }
