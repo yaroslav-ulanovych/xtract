@@ -45,7 +45,7 @@ class StandalonePolymorphicObjectsTest extends FunSpec {
     )
 
     it("read") {
-      val figure = read[Figure].from(data)(DefaultReadParams + FlatLayout("/"))
+      val figure = read[Figure].from(data)(DefaultReadParams + FlatLayoutOld("/"))
       figure.asInstanceOf[Rectangle].width() shouldBe 4
       figure.asInstanceOf[Rectangle].height() shouldBe 2
     }
@@ -54,7 +54,7 @@ class StandalonePolymorphicObjectsTest extends FunSpec {
       val rect = new Rectangle
       rect.width := 4
       rect.height := 2
-      write(rect, DefaultWriteParams + FlatLayout("/")) shouldBe data
+      write(rect, DefaultWriteParams + FlatLayoutOld("/")) shouldBe data
     }
   }
 }

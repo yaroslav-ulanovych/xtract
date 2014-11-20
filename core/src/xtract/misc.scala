@@ -7,3 +7,7 @@ case class FieldName(words: List[String]) {
     s"FieldName(${words.mkString(", ")})"
   }
 }
+
+object FieldName {
+  implicit def fromString(s: String) = FieldName(Utils.splitFieldNameIntoParts(s))
+}

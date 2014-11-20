@@ -39,7 +39,7 @@ object read extends Object with FieldTypeShortcuts {
     }
     params.thns.guessType(klass, typeHint) match {
       case Some(klass) => {
-        params.layout.dive2(data, params.fnc.apply(List(typeHint)), params) match {
+        params.layoutOld.dive2(data, params.fnc.apply(List(typeHint)), params) match {
           case Some(Right((data, layout))) => {
             readAny(klass.asInstanceOf[Class[T]], data, params + layout)
           }
@@ -103,9 +103,10 @@ object read extends Object with FieldTypeShortcuts {
       val args = caseClassFields zip argTypes map { case (field, fieldType) =>
         val fieldName = Utils.splitFieldNameIntoParts(field.getName)
         fieldType match {
+          // polymorphic
           case _ if ClassUtils.isAbstract(fieldType) && !fieldType.isPrimitive => {
-            val key = params.layout.makeKey(fieldName, params.fnc)
-            params.layout.dive1(data, key, params) match {
+            val key = params.layoutOld.makeKey(fieldName, params.fnc)
+            params.layoutOld.dive1(data, key, params) match {
               case Some(Right((data, layout))) => {
                 readPolymorphic(fieldType, data, params + layout)
               }
@@ -115,10 +116,10 @@ object read extends Object with FieldTypeShortcuts {
           }
           // embedded case class
           case _ if ClassUtils.isCaseClass(fieldType) => {
-            val key = params.layout.makeKey(fieldName, params.fnc)
-            params.layout.dive1(data, key, params) match {
-              case Some(Right((data, layout))) => {
-                readCaseClass(fieldType, data, params + layout)
+            val key = params.fnc.apply(fieldName)
+            params.diver.dive(data, key, params) match {
+              case Some(Right((data, reader))) => {
+                readCaseClass(fieldType, data, params + reader)
               }
               case Some(Left(value)) => {
                 throw new BadFieldValueException(klass, field.getName, fieldType, value, value.getClass, None)
@@ -154,7 +155,7 @@ object read extends Object with FieldTypeShortcuts {
   }
 
   def readSimpleField[T](root: Class[_], fieldType: Class[_], name: List[String], params: ReadParams[T], data: T): Any = {
-    val key = params.layout.makeKey(name, params.fnc)
+    val key = params.layoutOld.makeKey(name, params.fnc)
     params.reader.get(data, key) match {
       case Some(value) => {
         if (isAssignable(fieldType, value.getClass)) {
@@ -178,7 +179,9 @@ object read extends Object with FieldTypeShortcuts {
   }
 
   def readObject[Data](obj: Entity, fields: Traversable[Entity#Field[_]], data: Data, params: ReadParams[Data]) {
+    val klass = obj.getClass
     for(field <- fields) {
+      val fieldType = field.valueClass
       field match {
         case fld : SimpleField => {
           val field = fld.asInstanceOf[Entity#Field[Any]]
@@ -204,22 +207,28 @@ object read extends Object with FieldTypeShortcuts {
 //            case None => ??? //throw new MissingFieldException(rootObj, key, data, field)
 //          }
 //        }
-//        case field_ : Entity#EmbeddedConcreteField[_] => {
-//          val field = field_.asInstanceOf[Entity#EmbeddedConcreteField[Obj]]
-//          val key = params.diver.makeKey(field.getName(), None, params.fnc)
-//          params.layout.dive(data, key, params) match {
-//            case Some(Right((data, layout))) => {
-//              val entity = field.valueClass.newInstance()
-//              reado(entity.fields, data, params + layout)
-//              field := entity
-//            }
-//            case Some(Left(v)) => ???
-//            case None => ???
-//          }
-//        }
+        case field_ : Entity#EmbeddedConcreteField[_] => {
+          val field = field_.asInstanceOf[Entity#EmbeddedConcreteField[Obj]]
+
+          val key = params.fnc.apply(field.getName())
+
+          params.diver.dive(data, key, params) match {
+            case Some(Right((data, reader))) => {
+              val obj = field.valueClass.newInstance()
+              readObject(obj, obj.fields, data, params + reader)
+              field := obj
+            }
+            case Some(Left(value)) => {
+              throw new BadFieldValueException(klass, key, fieldType, value, value.getClass, None)
+            }
+            case None => {
+              throw new MissingFieldException(klass, key, fieldType, data)
+            }
+          }
+        }
         case field_ : Entity#EmbeddedPolymorphicField[_]  => {
           val field = field_.asInstanceOf[Entity#EmbeddedPolymorphicField[AbstractObj]]
-          params.layout.dive1(data, params.fnc.apply(field.getName().words), params) match {
+          params.layoutOld.dive1(data, params.fnc.apply(field.getName().words), params) match {
             case Some(Right((data, layout))) => {
               field := readAny(field.valueClass, data, params + layout)
             }
@@ -252,7 +261,7 @@ object read extends Object with FieldTypeShortcuts {
 
 
   def getTypeHint[T](data: T, params: ReadParams[T]): (Option[Either[Any, String]], String) = {
-    val key = params.layout.makeKey(List("type"), params.fnc)
+    val key = params.layoutOld.makeKey(List("type"), params.fnc)
     params.reader.get(data, key) match {
       case Some(x: String) => (Some(Right(x)), key)
       case Some(x) => (Some(Left(x)), key)

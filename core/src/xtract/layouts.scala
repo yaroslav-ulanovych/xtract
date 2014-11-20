@@ -1,16 +1,16 @@
 package xtract
 
 
-trait Layout extends Object {
-  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]]
-  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]]
-  def dive1[T](data: T, key: String, params: WriteParams[T]): (T, Layout)
-  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, Layout)
+
+trait LayoutOld extends Object {
+  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]]
+  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]]
+//  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, LayoutOld)
   def makeKey(field: List[String], fnc: FieldNamingConvention): String
 }
 
-object NestedLayout extends Layout {
-  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]] = {
+object NestedLayoutOld extends LayoutOld {
+  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]] = {
     params.reader.get(data, key) match {
       case Some(v) if params.reader.accepts(v.getClass) => Some(Right((v.asInstanceOf[T], this)))
       case Some(v) => Some(Left(v))
@@ -18,7 +18,7 @@ object NestedLayout extends Layout {
     }
   }
 
-  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]] = {
+  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]] = {
     params.reader.get(data, "args") match {
       case Some(v) if params.reader.accepts(v.getClass) => Some(Right((v.asInstanceOf[T], this)))
       case Some(v) => Some(Left(v))
@@ -26,13 +26,7 @@ object NestedLayout extends Layout {
     }
   }
 
-  def dive1[T](data: T, key: String, params: WriteParams[T]): (T, Layout) = {
-    val data2 = params.writer.create
-    params.writer.put(data, key, data2)
-    (data2, this)
-  }
-
-  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, Layout) = {
+  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, LayoutOld) = {
     val data2 = params.writer.create
     params.writer.put(data, "args", data2)
     (data2, this)
@@ -43,24 +37,38 @@ object NestedLayout extends Layout {
   }
 }
 
-case class FlatLayout(separator: String, prefix: String = "") extends Layout {
-  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]] = {
-    Some(Right((data, FlatLayout(separator, prefix + key + separator))))
+case class FlatLayoutOld(separator: String, prefix: String = "") extends LayoutOld {
+  def dive1[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]] = {
+    Some(Right((data, FlatLayoutOld(separator, prefix + key + separator))))
   }
 
-  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Layout)]] = {
+  def dive2[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, LayoutOld)]] = {
     dive1(data, key, params)
   }
 
-  def dive1[T](data: T, key: String, params: WriteParams[T]): (T, Layout) = {
-    (data, FlatLayout(separator, prefix + key + separator))
-  }
-
-  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, Layout) = {
-    dive1(data, key, params)
+  def dive2[T](data: T, key: String, params: WriteParams[T]): (T, LayoutOld) = {
+    (data, FlatLayoutOld(separator, prefix + key + separator))
   }
 
   def makeKey(field: List[String], fnc: FieldNamingConvention): String = {
     prefix + fnc.apply(field)
   }
 }
+
+trait FieldsLayout {
+  def dive[T](data: T, key: String, typeHint: String, params: WriteParams[T]): (T, Writer[T])
+}
+
+object SingleLevelFieldsLayout extends FieldsLayout {
+  def dive[T](data: T, key: String, typeHint: String, params: WriteParams[T]): (T, Writer[T]) = {
+    params.diver.dive(data, key, params)
+  }
+}
+
+object TypeHintFieldsLayout extends FieldsLayout {
+  def dive[T](data: T, key: String, typeHint: String, params: WriteParams[T]): (T, Writer[T]) = {
+    val (data2, writer) = params.diver.dive(data, key, params)
+    params.diver.dive(data2, typeHint, params + writer)
+  }
+}
+

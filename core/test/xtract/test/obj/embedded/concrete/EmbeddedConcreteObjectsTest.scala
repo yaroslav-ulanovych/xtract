@@ -13,12 +13,41 @@ class Address extends Obj {
 
 
 class EmbeddedConcreteObjectsTest extends FunSuite {
-  test("write to nested layout") {
+  test("read nested") {
+    val data = Map(
+      "address" -> Map(
+        "country" -> "USA",
+        "city" -> "NY"
+      )
+    )
+
+    val person = read[Person] from data
+
+    person.address().country() shouldBe "USA"
+    person.address().city() shouldBe "NY"
+  }
+
+
+  test("read flat") {
+    val data = Map(
+      "address.country" -> "USA",
+      "address.city" -> "NY"
+    )
+
+    val person = read[Person].from(data)(DefaultReadParams + FlatDiver("."))
+
+    person.address().country() shouldBe "USA"
+    person.address().city() shouldBe "NY"
+  }
+
+  test("write nested") {
     val person = new Person
-    val address = new Address
-    address.country := "USA"
-    address.city := "NY"
-    person.address := address
+
+    person.address := new Address
+
+    person.address().country := "USA"
+    person.address().city := "NY"
+
     write(person) shouldBe Map(
       "address" -> Map(
         "country" -> "USA",
@@ -27,16 +56,15 @@ class EmbeddedConcreteObjectsTest extends FunSuite {
     )
   }
 
-  test("write to flat layout") {
+  test("write flat") {
     val person = new Person
-    val address = new Address
-    address.country := "USA"
-    address.city := "NY"
-    person.address := address
+    person.address := new Address
+    person.address().country := "USA"
+    person.address().city := "NY"
 
-    write(person, DefaultWriteParams + FlatLayout("/")) shouldBe Map(
-      "address/country" -> "USA",
-      "address/city" -> "NY"
+    write(person, DefaultWriteParams + FlatDiver(".")) shouldBe Map(
+      "address.country" -> "USA",
+      "address.city" -> "NY"
     )
   }
 }

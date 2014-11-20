@@ -37,7 +37,7 @@ class StandalonePolymorphicCaseClassesTest extends FunSpec {
     )
 
     it("read") {
-      val figure = read[Figure].from(data)(DefaultReadParams + FlatLayout("/"))
+      val figure = read[Figure].from(data)(DefaultReadParams + FlatLayoutOld("/"))
       figure shouldBe Rectangle(4, 2)
     }
 

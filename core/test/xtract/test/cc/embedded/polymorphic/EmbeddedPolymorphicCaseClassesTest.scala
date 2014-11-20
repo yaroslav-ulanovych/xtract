@@ -1,6 +1,6 @@
 package xtract.test.cc.embedded.polymorphic
 
-import xtract.{FlatLayout, DefaultReadParams, read, FunSuite}
+import xtract.{FlatLayoutOld, DefaultReadParams, read, FunSuite}
 
 trait Figure
 
@@ -35,7 +35,7 @@ class EmbeddedPolymorphicCaseClassesTest extends FunSuite {
       "figure/rectangle/height" -> 2
     )
 
-    val holder = read[Holder].from(data)(DefaultReadParams + FlatLayout("/"))
+    val holder = read[Holder].from(data)(DefaultReadParams + FlatLayoutOld("/"))
     val rectangle = holder.figure.asInstanceOf[Rectangle]
     rectangle.width shouldBe 4
     rectangle.height shouldBe 2

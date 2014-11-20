@@ -53,7 +53,7 @@ class EmbeddedConcreteClassesSection extends FunSuite {
 // There is a third possible layout, but it's reasonable for embedded polymorphic classes,
 // so it will be discussed in a corresponding section.
 // For embedded concrete classes you have two options
-  import xtract.{FlatLayout, NestedLayout}
+  import xtract.{FlatLayoutOld, NestedLayoutOld}
 // I won't dive into implementation details, cause I believe all possible cases are covered by built-in layouts,
 // and there is no need for users to define their owns. If it's not so, please let me know and we'll fix that.
 //
@@ -61,7 +61,7 @@ class EmbeddedConcreteClassesSection extends FunSuite {
 // doc end
   test("default layout should be the default") {
 // doc begin
-    DefaultReadParams.layout shouldBe NestedLayout
+    DefaultReadParams.layoutOld shouldBe NestedLayoutOld
 // doc end
   }
 
@@ -75,14 +75,14 @@ class EmbeddedConcreteClassesSection extends FunSuite {
   test("flat layout") {
 // doc begin
 // Flat layout takes a single parameter that is a separator between field names that form a final field name.
-    implicit val params = DefaultReadParams + FlatLayout("_")
+    implicit val params = DefaultReadParams + FlatLayoutOld("_")
     val person = read[Person] from flatData
     person shouldBe Person("John", Address("USA", "NY"))
 // doc end
   }
 
   test("flat layout 2") {
-    implicit val params = DefaultReadParams + FlatLayout("_")
+    implicit val params = DefaultReadParams + FlatLayoutOld("_")
 // doc begin
     val person = read[PersonWithTwoAddresses] from flatData2
     person shouldBe PersonWithTwoAddresses(Address("USA", "NY"), Address("China", "Beijing"))

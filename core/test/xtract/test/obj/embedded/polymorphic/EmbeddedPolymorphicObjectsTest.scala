@@ -42,10 +42,27 @@ class EmbeddedPolymorphicObjectsTest extends FunSuite {
       "figure/rectangle/height" -> 2
     )
 
-    val holder = read[Holder].from(data)(DefaultReadParams + FlatLayout("/"))
+    val holder = read[Holder].from(data)(DefaultReadParams + FlatLayoutOld("/"))
     val rectangle = holder.figure().asInstanceOf[Rectangle]
     rectangle.width() shouldBe 4
     rectangle.height() shouldBe 2
+  }
+
+  test("write nested") {
+    val rectangle = new Rectangle
+    rectangle.width := 4
+    rectangle.height := 2
+    val holder = new Holder
+    holder.figure := rectangle
+    val map = write(holder)
+
+    map shouldBe Map(
+      "figure" -> Map(
+        "type" -> "Rectangle",
+        "width" -> 4,
+        "height" -> 2
+      )
+    )
   }
 
   test("write to flat layout") {
@@ -54,11 +71,12 @@ class EmbeddedPolymorphicObjectsTest extends FunSuite {
     rectangle.height := 2
     val holder = new Holder
     holder.figure := rectangle
-    val map = write(holder, DefaultWriteParams + FlatLayout("/"))
+    val map = write(holder, DefaultWriteParams + FlatDiver(".") + TypeHintFieldsLayout)
+
     map shouldBe Map(
-      "figure/type" -> "Rectangle",
-      "figure/rectangle/width" -> 4,
-      "figure/rectangle/height" -> 2
+      "figure.type" -> "Rectangle",
+      "figure.rectangle.width" -> 4,
+      "figure.rectangle.height" -> 2
     )
   }
 }

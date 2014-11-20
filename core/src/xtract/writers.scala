@@ -14,3 +14,9 @@ object MapWriter extends Writer[MutableHashMap[String, Any]] {
     data.put(key, value)
   }
 }
+
+case class PrefixedWriter[T](prefix: String, writer: Writer[T]) extends Writer[T] {
+  def create = writer.create
+
+  def put(data: T, key: String, value: Any) = writer.put(data, prefix + key, value)
+}

@@ -71,16 +71,19 @@ class JdbcCrudStorage(
   val writeParams = WriteParams(
     writer = MapWriter,
     reader = MapReader,
+    diver = ???,
     fnc = fnc,
     thns = SamePackageTypeHintNamingStrategy,
-    layout = layout,
+    layoutOld = layout,
     allowedClasses = DefaultWriteParams.allowedClasses,
     converters = converters
   )
 
   val readParams = ReadParams(
     reader = ResultSetReader,
-    layout = layout,
+    diver = ???,
+    layoutOld = layout,
+    thls = ???,
     thns = SamePackageTypeHintNamingStrategy,
     fnc = fnc,
     converters = converters
@@ -420,7 +423,7 @@ object JdbcCrudStorage {
     }
   }
 
-  val layout = FlatLayout("__")
+  val layout = FlatLayoutOld("__")
 
 //  val writeParams = WriteParams(
 //    writer = MapWriter,

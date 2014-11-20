@@ -1,5 +1,7 @@
 package xtract
 
+import scala.reflect.ClassTag
+
 object write extends Object with FieldTypeShortcuts {
   def apply[T](obj: Any, params: WriteParams[T] = DefaultWriteParams): T = {
     val data = params.writer.create
@@ -11,9 +13,9 @@ object write extends Object with FieldTypeShortcuts {
     obj match {
       case obj: AbstractObj => {
         val typeHint = params.thns.getTypeHint(obj)
-        val key = params.layout.makeKey(List("type"), params.fnc)
+        val key = params.layoutOld.makeKey(List("type"), params.fnc)
         params.writer.put(data, key, typeHint.render(CamelCase.noDelimiter))
-        val (data2, layout) = params.layout.dive2(data, typeHint.render(params.fnc), params)
+        val (data2, layout) = params.layoutOld.dive2(data, typeHint.render(params.fnc), params)
         writeObj(obj, data2, params + layout)
       }
       case obj: Obj => {
@@ -30,7 +32,7 @@ object write extends Object with FieldTypeShortcuts {
     for(field <- fields) {
       field.asInstanceOf[Entity#Field[_]] match {
         case field_ : SimpleField => {
-          val key = params.layout.makeKey(field.getName().words, params.fnc)
+          val key = params.layoutOld.makeKey(field.getName().words, params.fnc)
           val value = field()
           val valueClass = value.getClass
 
@@ -46,20 +48,20 @@ object write extends Object with FieldTypeShortcuts {
             }
           }
         }
-        case field_ : obj.EmbeddedConcreteField[_] => {
-          val field = field_.asInstanceOf[obj.EmbeddedConcreteField[Obj]]
-          val key = params.layout.makeKey(field.getName().words, params.fnc)
-          val (data2, layout) = params.layout.dive1(data, key, params)
-          val entity = field()
-          writeObj(entity, data2, params + layout)
+        case fld: obj.EmbeddedConcreteField[_] => {
+          val field = fld.asInstanceOf[obj.EmbeddedConcreteField[Obj]]
+          val key = params.fnc.apply(field.getName())
+          val (nestedData, writer) = params.diver.dive(data, key, params)
+          writeObj(field(), nestedData, params + writer)
         }
         case fld: obj.EmbeddedPolymorphicField[_] => {
           val field = fld.asInstanceOf[obj.EmbeddedPolymorphicField[AbstractObj]]
-          val key = params.layout.makeKey(field.getName().words, params.fnc)
-          val (data2, layout) = params.layout.dive1(data, key, params)
-          params.writer.put(data2, "type", "Foo")
-          val (data3, layout3) = params.layout.dive2(data2, "args", params + layout)
-          writeObj(field(), data3, params + layout3)
+          val embeddedObj = field()
+          val key = params.fnc.apply(field.getName())
+          val typeHint = params.thns.getTypeHint(embeddedObj)
+          params.thls.putTypeHint(data, key, typeHint.render(CamelCase.noDelimiter), params)
+          val (embeddedData, writer) = params.fieldsLayout.dive(data, key, typeHint.render(params.fnc), params)
+          writeObj(embeddedObj, embeddedData, params + writer)
         }
       }
     }
