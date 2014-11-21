@@ -4,22 +4,30 @@ import scala.reflect.ClassTag
 
 object write extends Object with FieldTypeShortcuts {
   def apply[T](obj: Any, params: WriteParams[T] = DefaultWriteParams): T = {
-    val data = params.writer.create
-    write1(obj, data, params)
-    data
+    write1(obj, params)
   }
 
-  def write1[T](obj: Any, data: T, params: WriteParams[T]) {
+  def write1[T](obj: Any, params: WriteParams[T]): T = {
     obj match {
       case obj: AbstractObj => {
-        val typeHint = params.thns.getTypeHint(obj)
-        val key = params.layoutOld.makeKey(List("type"), params.fnc)
-        params.writer.put(data, key, typeHint.render(CamelCase.noDelimiter))
-        val (data2, layout) = params.layoutOld.dive2(data, typeHint.render(params.fnc), params)
-        writeObj(obj, data2, params + layout)
+        class Holder extends Obj {
+          val value = embedded[AbstractObj]
+        }
+        val holder = new Holder
+        holder.value := obj
+        val data = params.writer.create
+        writeObj(holder, data, params)
+        params.reader.get(data, params.fnc.apply("value")).get.asInstanceOf[T]
+//        val typeHint = params.thns.getTypeHint(obj)
+//        val key = params.layoutOld.makeKey(List("type"), params.fnc)
+//        params.writer.put(data, key, typeHint.render(CamelCase.noDelimiter))
+//        val (data2, layout) = params.layoutOld.dive2(data, typeHint.render(params.fnc), params)
+//        writeObj(obj, data2, params + layout)
       }
       case obj: Obj => {
+        val data = params.writer.create
         writeObj(obj, data, params)
+        data
       }
     }
   }

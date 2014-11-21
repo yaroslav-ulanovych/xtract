@@ -54,7 +54,7 @@ class StandalonePolymorphicObjectsTest extends FunSpec {
       val rect = new Rectangle
       rect.width := 4
       rect.height := 2
-      write(rect, DefaultWriteParams + FlatLayoutOld("/")) shouldBe data
+      write(rect, DefaultWriteParams + FlatLayoutOld("/") + FlatDiver("/")) shouldBe data
     }
   }
 }
