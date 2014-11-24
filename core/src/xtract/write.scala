@@ -10,19 +10,16 @@ object write extends Object with FieldTypeShortcuts {
   def write1[T](obj: Any, params: WriteParams[T]): T = {
     obj match {
       case obj: AbstractObj => {
-        class Holder extends Obj {
-          val value = embedded[AbstractObj]
-        }
-        val holder = new Holder
-        holder.value := obj
         val data = params.writer.create
-        writeObj(holder, data, params)
-        params.reader.get(data, params.fnc.apply("value")).get.asInstanceOf[T]
-//        val typeHint = params.thns.getTypeHint(obj)
+        val typeHint = params.thns.getTypeHint(obj)
+        params.thls.putTypeHint(data, None, typeHint.render(CamelCase.noDelimiter), params)
+        val (data2, writer2) = params.fieldsLayout.dive(data, None, typeHint.render(params.fnc), params)
+        writeObj(obj, data2, params + writer2)
 //        val key = params.layoutOld.makeKey(List("type"), params.fnc)
 //        params.writer.put(data, key, typeHint.render(CamelCase.noDelimiter))
 //        val (data2, layout) = params.layoutOld.dive2(data, typeHint.render(params.fnc), params)
 //        writeObj(obj, data2, params + layout)
+        data
       }
       case obj: Obj => {
         val data = params.writer.create
@@ -67,8 +64,8 @@ object write extends Object with FieldTypeShortcuts {
           val embeddedObj = field()
           val key = params.fnc.apply(field.getName())
           val typeHint = params.thns.getTypeHint(embeddedObj)
-          params.thls.putTypeHint(data, key, typeHint.render(CamelCase.noDelimiter), params)
-          val (embeddedData, writer) = params.fieldsLayout.dive(data, key, typeHint.render(params.fnc), params)
+          params.thls.putTypeHint(data, Some(field.getName()), typeHint.render(CamelCase.noDelimiter), params)
+          val (embeddedData, writer) = params.fieldsLayout.dive(data, Some(field.getName()), typeHint.render(params.fnc), params)
           writeObj(embeddedObj, embeddedData, params + writer)
         }
       }

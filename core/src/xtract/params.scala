@@ -36,7 +36,7 @@ case class WriteParams[T](
   layoutOld: LayoutOld,
   thns: TypeHintNamingStrategy,
   thls: TypeHintLocationStrategy,
-  fieldsLayout: FieldsLayout,
+  fieldsLayout: FieldsLocation,
   allowedClasses: Seq[Class[_]],
   converters: Seq[Converter[_, _]]
 ) {
@@ -44,7 +44,7 @@ case class WriteParams[T](
   def +(x: Converter[_, _]) = copy(converters = converters :+ x)
   def +(x: Writer[T]) = copy(writer = x)
   def +(x: Diver) = copy(diver = x)
-  def +(x: FieldsLayout) = copy(fieldsLayout = x)
+  def +(x: FieldsLocation) = copy(fieldsLayout = x)
 
   def classAllowed(klass: Class[_]) = allowedClasses.contains(klass)
 
@@ -58,8 +58,8 @@ object DefaultWriteParams extends WriteParams(
   fnc = LowerCamelCase.noDelimiter,
   layoutOld = NestedLayoutOld,
   thns = SamePackageTypeHintNamingStrategy,
-  thls = BelowTypeHintLocationStrategy("type"),
-  fieldsLayout = SingleLevelFieldsLayout,
+  thls = NearTypeHintLocationStrategy("type"),
+  fieldsLayout = SimpleFieldsLocation,
   allowedClasses = Seq(
     classOf[Int], classOf[Long], classOf[Float], classOf[Double], classOf[Boolean], classOf[String],
     classOf[java.lang.Integer], classOf[java.lang.Long], classOf[java.lang.Float], classOf[java.lang.Double], classOf[java.lang.Boolean]

@@ -71,7 +71,7 @@ class EmbeddedPolymorphicObjectsTest extends FunSuite {
     rectangle.height := 2
     val holder = new Holder
     holder.figure := rectangle
-    val map = write(holder, DefaultWriteParams + FlatDiver(".") + TypeHintFieldsLayout)
+    val map = write(holder, DefaultWriteParams + FlatDiver(".") + TypeHintFieldsLocation)
 
     map shouldBe Map(
       "figure.type" -> "Rectangle",
@@ -79,4 +79,60 @@ class EmbeddedPolymorphicObjectsTest extends FunSuite {
       "figure.rectangle.height" -> 2
     )
   }
+}
+
+class Examples {
+  Map(
+    "figureType" -> "Rectangle",
+    "figure" -> Map(
+      "width" -> 4,
+      "height" -> 2
+    )
+  )
+
+  Map(
+    "type" -> "Rectangle",
+    "width" -> 4,
+    "height" -> 2
+  )
+
+
+
+  Map(
+    "figure" -> Map(
+      "type" -> "Rectangle",
+      "args" -> Map(
+        "width" -> 4,
+        "height" -> 2
+      )
+    )
+  )
+
+  Map(
+    "type" -> "Rectangle",
+    "args" -> Map(
+      "width" -> 4,
+      "height" -> 2
+    )
+  )
+
+
+
+  Map(
+    "figure" -> Map(
+      "type" -> "Rectangle",
+      "rectangle" -> Map(
+        "width" -> 4,
+        "height" -> 2
+      )
+    )
+  )
+
+  Map(
+    "type" -> "Rectangle",
+    "rectangle" -> Map(
+      "width" -> 4,
+      "height" -> 2
+    )
+  )
 }

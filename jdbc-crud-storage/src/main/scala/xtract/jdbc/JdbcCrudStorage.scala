@@ -74,6 +74,8 @@ class JdbcCrudStorage(
     diver = ???,
     fnc = fnc,
     thns = SamePackageTypeHintNamingStrategy,
+    thls = ???,
+    fieldsLayout = ???,
     layoutOld = layout,
     allowedClasses = DefaultWriteParams.allowedClasses,
     converters = converters
