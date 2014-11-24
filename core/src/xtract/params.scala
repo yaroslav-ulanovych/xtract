@@ -8,6 +8,7 @@ object DefaultReadParams extends ReadParams(
   fnc = LowerCamelCase.noDelimiter,
   thls = BelowTypeHintLocationStrategy("type"),
   thns = SamePackageTypeHintNamingStrategy,
+  fieldsLayout = SimpleFieldsLocation,
   converters = Seq()
 )
 
@@ -18,6 +19,7 @@ case class ReadParams[-T](
   fnc: FieldNamingConvention,
   thns: TypeHintNamingStrategy,
   thls: TypeHintLocationStrategy,
+  fieldsLayout: FieldsLocation,
   converters: Seq[Converter[_, _]]
 )
 {
@@ -26,6 +28,8 @@ case class ReadParams[-T](
   def +(x: LayoutOld) = copy(layoutOld = x)
   def +(x: Converter[_, _]) = copy(converters = converters :+ x)
   def +(x: FieldNamingConvention) = copy(fnc = x)
+  def +(x: TypeHintLocationStrategy) = copy(thls = x)
+  def +(x: FieldsLocation) = copy(fieldsLayout = x)
 }
 
 case class WriteParams[T](

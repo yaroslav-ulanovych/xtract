@@ -16,7 +16,7 @@ object read extends Object with FieldTypeShortcuts {
   def readAny[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
     klass match {
       case _ if ClassUtils.isAbstract(klass) && !klass.isPrimitive => {
-        readPolymorphic(klass, data, params)
+        readPolymorphic(klass, data, None, params)
       }
       case _ if classOf[Entity].isAssignableFrom(klass) => {
         val entity = klass.newInstance().asInstanceOf[Entity]
@@ -31,17 +31,22 @@ object read extends Object with FieldTypeShortcuts {
     }
   }
 
-  def readPolymorphic[T, U](klass: Class[T], data: U, params: ReadParams[U]): T = {
-    val typeHint = getTypeHint(data, params) match {
-      case (Some(Right(typeHint)), _) => typeHint
-      case (Some(Left(x)), _) => ???
-      case (None, key) => throw new MissingTypeHintException(klass, key, classOf[String], data)
+  def readPolymorphic[T, U](klass: Class[T], data: U, field: Option[FieldName], params: ReadParams[U]): T = {
+    val typeHint = params.thls.getTypeHint(data, field, params) match {
+      case Some(Right(typeHint)) => typeHint
+      case Some(Left(x)) => ???
+      case None => throw new MissingTypeHintException(klass, "???", classOf[String], data)
     }
+//    val typeHint = getTypeHint(data, params) match {
+//      case (Some(Right(typeHint)), _) => typeHint
+//      case (Some(Left(x)), _) => ???
+//      case (None, key) => throw new MissingTypeHintException(klass, key, classOf[String], data)
+//    }
     params.thns.guessType(klass, typeHint) match {
       case Some(klass) => {
-        params.layoutOld.dive2(data, params.fnc.apply(List(typeHint)), params) match {
-          case Some(Right((data, layout))) => {
-            readAny(klass.asInstanceOf[Class[T]], data, params + layout)
+        params.fieldsLayout.dive(data, field, typeHint, params) match {
+          case Some(Right((data, reader))) => {
+            readAny(klass.asInstanceOf[Class[T]], data, params + reader)
           }
           case Some(Left(x)) => ???
           case None => ???
@@ -105,14 +110,7 @@ object read extends Object with FieldTypeShortcuts {
         fieldType match {
           // polymorphic
           case _ if ClassUtils.isAbstract(fieldType) && !fieldType.isPrimitive => {
-            val key = params.layoutOld.makeKey(fieldName, params.fnc)
-            params.layoutOld.dive1(data, key, params) match {
-              case Some(Right((data, layout))) => {
-                readPolymorphic(fieldType, data, params + layout)
-              }
-              case Some(Left(value)) => throw new BadFieldValueException(klass, key, fieldType, value, value.getClass, None)
-              case None => throw new MissingFieldException(klass, key, fieldType, data)
-            }
+            readPolymorphic(fieldType, data, Some(field.getName), params)
           }
           // embedded case class
           case _ if ClassUtils.isCaseClass(fieldType) => {
@@ -228,13 +226,7 @@ object read extends Object with FieldTypeShortcuts {
         }
         case field_ : Entity#EmbeddedPolymorphicField[_]  => {
           val field = field_.asInstanceOf[Entity#EmbeddedPolymorphicField[AbstractObj]]
-          params.layoutOld.dive1(data, params.fnc.apply(field.getName().words), params) match {
-            case Some(Right((data, layout))) => {
-              field := readAny(field.valueClass, data, params + layout)
-            }
-            case Some(Left(v)) => ???
-            case None => throw MissingTypeHintException(field.entity.getClass, field.getName().words.mkString, field.valueClass, data)
-          }
+          field := readPolymorphic(field.valueClass, data, Some(field.getName()), params)
         }
         //        case field: LinkField[_] => {
         //          field.asInstanceOf[LinkField[Any]] := params.get(field, data)
