@@ -4,7 +4,6 @@ package xtract
 object DefaultReadParams extends ReadParams(
   reader = MapReader,
   diver = NestedDiver,
-  layoutOld = NestedLayoutOld,
   fnc = LowerCamelCase.noDelimiter,
   thls = BelowTypeHintLocationStrategy("type"),
   thns = SamePackageTypeHintNamingStrategy,
@@ -15,7 +14,6 @@ object DefaultReadParams extends ReadParams(
 case class ReadParams[-T](
   reader: Reader[T],
   diver: Diver,
-  layoutOld: LayoutOld,
   fnc: FieldNamingConvention,
   thns: TypeHintNamingStrategy,
   thls: TypeHintLocationStrategy,
@@ -25,7 +23,6 @@ case class ReadParams[-T](
 {
   def +[U](x: Reader[U]) = copy(reader = x)
   def +(x: Diver) = copy(diver = x)
-  def +(x: LayoutOld) = copy(layoutOld = x)
   def +(x: Converter[_, _]) = copy(converters = converters :+ x)
   def +(x: FieldNamingConvention) = copy(fnc = x)
   def +(x: TypeHintLocationStrategy) = copy(thls = x)
@@ -37,18 +34,17 @@ case class WriteParams[T](
   reader: Reader[T],
   diver: Diver,
   fnc: FieldNamingConvention,
-  layoutOld: LayoutOld,
   thns: TypeHintNamingStrategy,
   thls: TypeHintLocationStrategy,
   fieldsLayout: FieldsLocation,
   allowedClasses: Seq[Class[_]],
   converters: Seq[Converter[_, _]]
 ) {
-  def +(x: LayoutOld) = copy(layoutOld = x)
   def +(x: Converter[_, _]) = copy(converters = converters :+ x)
   def +(x: Writer[T]) = copy(writer = x)
   def +(x: Diver) = copy(diver = x)
   def +(x: FieldsLocation) = copy(fieldsLayout = x)
+  def +(x: TypeHintLocationStrategy) = copy(thls = x)
 
   def classAllowed(klass: Class[_]) = allowedClasses.contains(klass)
 
@@ -60,7 +56,6 @@ object DefaultWriteParams extends WriteParams(
   reader = MapReader,
   diver = NestedDiver,
   fnc = LowerCamelCase.noDelimiter,
-  layoutOld = NestedLayoutOld,
   thns = SamePackageTypeHintNamingStrategy,
   thls = NearTypeHintLocationStrategy("type"),
   fieldsLayout = SimpleFieldsLocation,

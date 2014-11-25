@@ -76,7 +76,6 @@ class JdbcCrudStorage(
     thns = SamePackageTypeHintNamingStrategy,
     thls = ???,
     fieldsLayout = ???,
-    layoutOld = layout,
     allowedClasses = DefaultWriteParams.allowedClasses,
     converters = converters
   )
@@ -84,8 +83,8 @@ class JdbcCrudStorage(
   val readParams = ReadParams(
     reader = ResultSetReader,
     diver = ???,
-    layoutOld = layout,
     thls = ???,
+    fieldsLayout = ???,
     thns = SamePackageTypeHintNamingStrategy,
     fnc = fnc,
     converters = converters
@@ -411,7 +410,7 @@ object JdbcCrudStorage {
 
 
   def getFQName(field: Entity#Field[_], fnc: FieldNamingConvention): String = {
-    field.fqname(SamePackageTypeHintNamingStrategy).map(fnc.apply).mkString(layout.separator)
+    field.fqname(SamePackageTypeHintNamingStrategy).map(fnc.apply).mkString(diver.separator)
   }
 
   def setParameter(stmt: PreparedStatement, index: Int, value: Any) {
@@ -425,7 +424,7 @@ object JdbcCrudStorage {
     }
   }
 
-  val layout = FlatLayoutOld("__")
+  val diver = FlatDiver("__")
 
 //  val writeParams = WriteParams(
 //    writer = MapWriter,

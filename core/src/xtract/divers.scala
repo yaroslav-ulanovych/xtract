@@ -3,16 +3,16 @@ package xtract
 import scala.reflect.ClassTag
 
 trait Diver {
-  def dive[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Reader[T])]]
+  def dive[T](data: T, key: String, params: ReadParams[T]): (T, Reader[T])
   def dive[T](data: T, key: String, params: WriteParams[T]): (T, Writer[T])
 }
 
 object NestedDiver extends Diver {
-  def dive[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Reader[T])]] = {
+  def dive[T](data: T, key: String, params: ReadParams[T]): (T, Reader[T]) = {
     params.reader.get(data, key) match {
-      case Some(data) if params.reader.accepts(data.getClass) => Some(Right((data.asInstanceOf[T], params.reader)))
-      case Some(value) => Some(Left(value))
-      case None => None
+      case Some(data) if params.reader.accepts(data.getClass) => (data.asInstanceOf[T], params.reader)
+      case Some(value) => throw BadKeyValueException(data, key, value, params.reader.classTag.runtimeClass.getName)
+      case None => throw MissingKeyException(data, key)
     }
   }
 
@@ -37,8 +37,8 @@ object NestedDiver extends Diver {
 }
 
 case class FlatDiver(separator: String) extends Diver {
-  def dive[T](data: T, key: String, params: ReadParams[T]): Option[Either[Any, (T, Reader[T])]] = {
-    Some(Right((data.asInstanceOf[T], PrefixedReader(key + separator, params.reader))))
+  def dive[T](data: T, key: String, params: ReadParams[T]): (T, Reader[T]) = {
+    (data.asInstanceOf[T], PrefixedReader(key + separator, params.reader))
   }
 
   def dive[T](data: T, key: String, params: WriteParams[T]): (T, Writer[T]) = {

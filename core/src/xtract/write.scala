@@ -37,7 +37,8 @@ object write extends Object with FieldTypeShortcuts {
     for(field <- fields) {
       field.asInstanceOf[Entity#Field[_]] match {
         case field_ : SimpleField => {
-          val key = params.layoutOld.makeKey(field.getName().words, params.fnc)
+          //val key = params.layoutOld.makeKey(field.getName().words, params.fnc)
+          val key = params.fnc.apply(field.getName().words)
           val value = field()
           val valueClass = value.getClass
 

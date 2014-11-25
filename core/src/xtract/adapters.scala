@@ -9,6 +9,8 @@ import scala.reflect.ClassTag
 abstract class Reader[-T: ClassTag] {
   val classTag: ClassTag[_] = implicitly[ClassTag[T]]
   def accepts(klass: Class[_]): Boolean = implicitly[ClassTag[T]].runtimeClass.isAssignableFrom(klass)
+  def get_!(data: T, key: String): Any = get(data, key).getOrElse(throw new MissingKeyException(data, key))
+
   def get(data: T, key: String): Option[Any]
 }
 // def end
@@ -27,4 +29,8 @@ object JavaMapReader extends Reader[JavaMap[String, Any]] {
 
 case class PrefixedReader[T](prefix: String, reader: Reader[T]) extends Reader[T]()(reader.classTag.asInstanceOf[ClassTag[T]]/*can't make ClassTag[T] because of variance issues*/) {
   def get(data: T, key: String): Option[Any] = reader.get(data, prefix + key)
+
+  override def get_!(data: T, key: String): Any = {
+    get(data, key).getOrElse(throw new MissingKeyException(data, prefix + key))
+  }
 }

@@ -16,6 +16,9 @@ case class MissingFieldException(
   s"missing field $field: ${fieldType.getName} in $data"
 )
 
+case class MissingKeyException(data: Any, key: String) extends Exception(s"missing $key in $data")
+case class BadKeyValueException(data: Any, key: String, value: Any, expected: String) extends Exception(s"bad key value for $key key, expected $expected, got ${value.getClass}($value)")
+
 case class BadFieldValueException(
   klass: Class[_],
   field: String,
