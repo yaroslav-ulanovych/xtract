@@ -71,20 +71,20 @@ class JdbcCrudStorage(
   val writeParams = WriteParams(
     writer = MapWriter,
     reader = MapReader,
-    diver = ???,
+    diver = diver,
     fnc = fnc,
     thns = SamePackageTypeHintNamingStrategy,
-    thls = ???,
-    fieldsLayout = ???,
+    thls = NearTypeHintLocationStrategy("type"),
+    fieldsLayout = TypeHintFieldsLocation,
     allowedClasses = DefaultWriteParams.allowedClasses,
     converters = converters
   )
 
   val readParams = ReadParams(
     reader = ResultSetReader,
-    diver = ???,
-    thls = ???,
-    fieldsLayout = ???,
+    diver = diver,
+    thls = NearTypeHintLocationStrategy("type"),
+    fieldsLayout = TypeHintFieldsLocation,
     thns = SamePackageTypeHintNamingStrategy,
     fnc = fnc,
     converters = converters
