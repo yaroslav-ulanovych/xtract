@@ -7,36 +7,44 @@ trait TypeHintLocationStrategy {
 
 case class BelowTypeHintLocationStrategy(typeHintFieldName: FieldName) extends TypeHintLocationStrategy {
   def getTypeHint[T](data: T, field: Option[FieldName], params: ReadParams[T]): String = {
+    val typeHintKey = params.fnc.apply(typeHintFieldName)
     field match {
       case Some(field) => {
-        val key = params.fnc.apply(field)
-        val (data2, reader2) = params.diver.dive(data, key, params)
-        reader2.get(data2, params.fnc.apply(typeHintFieldName)) match {
-          case Some(typeHint: String) => Some(Right(typeHint))
-          case Some(value) => Some(Left(value))
-          case None => None
+        val (data2, reader2) = params.diver.dive(data, params.fnc.apply(field), params)
+        reader2.get_!(data2, typeHintKey) match {
+          case typeHint: String => typeHint
+          case value => throw BadKeyValueException(data, typeHintKey, value, "string")
         }
       }
       case None => {
-        throw new Exception(s"${getClass.getSimpleName} makes no sense for standalone polymorphic objects")
+        params.reader.get_!(data, typeHintKey) match {
+          case typeHint: String => typeHint
+          case value => throw BadKeyValueException(data, typeHintKey, value, "string")
+        }
       }
     }
   }
 
   def putTypeHint[T](data: T, field: Option[FieldName], typeHint: String, params: WriteParams[T]) {
-    ???
-//    val (nestedData, writer) = params.diver.dive(data, key, params)
-//    writer.put(nestedData, params.fnc.apply(typeHintFieldName), typeHint)
+    val typeHintKey = typeHintFieldName.render(params.fnc)
+    field match {
+      case Some(field) => {
+        val (data2, writer2) = params.diver.dive(data, params.fnc.apply(field), params)
+        writer2.put(data2, typeHintKey, typeHint)
+      }
+      case None => {
+        params.writer.put(data, typeHintKey, typeHint)
+      }
+    }
   }
 }
 
 case class NearTypeHintLocationStrategy(typeHintFieldName: FieldName) extends TypeHintLocationStrategy {
   def getTypeHint[T](data: T, field: Option[FieldName], params: ReadParams[T]): String = {
     val key = params.fnc.apply(field.map(_ + typeHintFieldName).getOrElse(typeHintFieldName))
-    params.reader.get(data, key) match {
-      case Some(typeHint: String) => Some(Right(typeHint))
-      case Some(value) => Some(Left(value))
-      case None => None
+    params.reader.get_!(data, key) match {
+      case typeHint: String => typeHint
+      case value => throw BadKeyValueException(data, key, value, "string")
     }
   }
 

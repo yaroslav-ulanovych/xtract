@@ -32,16 +32,7 @@ object read extends Object with FieldTypeShortcuts {
   }
 
   def readPolymorphic[T, U](klass: Class[T], data: U, field: Option[FieldName], params: ReadParams[U]): T = {
-    val typeHint: FieldName = params.thls.getTypeHint(data, field, params) match {
-      case Some(Right(typeHint)) => typeHint
-      case Some(Left(x)) => ???
-      case None => throw new MissingTypeHintException(klass, "???", classOf[String], data)
-    }
-//    val typeHint = getTypeHint(data, params) match {
-//      case (Some(Right(typeHint)), _) => typeHint
-//      case (Some(Left(x)), _) => ???
-//      case (None, key) => throw new MissingTypeHintException(klass, key, classOf[String], data)
-//    }
+    val typeHint: FieldName = params.thls.getTypeHint(data, field, params)
     params.thns.guessType(klass, typeHint.render(CamelCase.noDelimiter)) match {
       case Some(klass) => {
         val (data2, reader2) = params.fieldsLayout.dive(data, field, typeHint.render(params.fnc), params)
