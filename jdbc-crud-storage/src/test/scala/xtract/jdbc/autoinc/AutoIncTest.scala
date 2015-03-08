@@ -30,7 +30,6 @@ class AutoIncTest extends FunSuite with Matchers {
         user.id() shouldBe 1
       }
     } finally {
-      storage.close
       conn.close
     }
 

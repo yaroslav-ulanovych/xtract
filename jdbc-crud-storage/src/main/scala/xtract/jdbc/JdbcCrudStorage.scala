@@ -1,8 +1,7 @@
 package xtract.jdbc
 
-import java.sql.{Statement, Connection, PreparedStatement}
+import java.sql.{Connection, DriverManager, PreparedStatement, Statement, SQLException}
 
-import com.mchange.v2.c3p0.ComboPooledDataSource
 import com.typesafe.scalalogging.StrictLogging
 import xtract._
 import xtract.query._
@@ -18,7 +17,8 @@ class JdbcCrudStorage(
   settings: DbSettings,
   fnc: FieldNamingConvention,
   schema: Option[String] = None,
-  converters: Seq[Converter[_, _]] = Seq()
+  converters: Seq[Converter[_, _]] = Seq(),
+  getConnection: Option[DbSettings => Connection] = None
 ) extends CrudStorage with StrictLogging {
   import JdbcCrudStorage._
 
@@ -28,41 +28,58 @@ class JdbcCrudStorage(
   }
   import functions._
 
-  private val cpds = new ComboPooledDataSource()
-  cpds.setDriverClass(settings.driver)
-  cpds.setJdbcUrl(settings.url)
-  cpds.setUser(settings.user)
-  cpds.setPassword(settings.password)
-  cpds.setMinPoolSize(1)
-  cpds.setMaxPoolSize(1)
-  cpds.setCheckoutTimeout(3000)
-  cpds.setAcquireRetryAttempts(0)
+//  private val cpds = new ComboPooledDataSource()
+//  cpds.setDriverClass(settings.driver)
+//  cpds.setJdbcUrl(settings.url)
+//  cpds.setUser(settings.user)
+//  cpds.setPassword(settings.password)
+//  cpds.setMinPoolSize(1)
+//  cpds.setMaxPoolSize(1)
+//  cpds.setCheckoutTimeout(3000)
+//  cpds.setAcquireRetryAttempts(0)
 
   private val connectionTL = new ThreadLocal[Connection]
 
-  protected def connection = Option(connectionTL.get()).getOrElse(throw new RuntimeException("no connection, are you in transaction?"))
+  protected def getConnectionBla(): Connection = {
+    Option(connectionTL.get()).getOrElse(throw new RuntimeException("no connection, are you in transaction?"))
+  }
 
   def inTransaction[T](doWork: => T): T = {
-    val connection = cpds.getConnection
-    val autoCommit = connection.getAutoCommit
-    connection setAutoCommit false
+    val connection = connectionTL.get()
 
-    if (schema.isDefined) {
-      val stmt = connection.createStatement()
-      val setSchemaCommand = makeSetSchemaCommand(settings.driver, schema.get)
-      stmt.execute(setSchemaCommand)
-      stmt.close()
-    }
+    val inNestedTransaction = connection ne null
 
-    connectionTL set connection
-    try {
-      val result = doWork
-      connection.commit()
-      result
-    } finally {
-      connection setAutoCommit autoCommit
-      connection.close()
-      connectionTL.remove()
+    if (inNestedTransaction) {
+      doWork
+    } else {
+      val connection = getConnection.map(_.apply(settings)) getOrElse {
+        DriverManager.getConnection(settings.url, settings.user, settings.password)
+      }
+      val autoCommit = connection.getAutoCommit
+      connection setAutoCommit false
+
+      if (schema.isDefined) {
+        val stmt = connection.createStatement()
+        val setSchemaCommand = makeSetSchemaCommand(settings.driver, schema.get)
+        stmt.execute(setSchemaCommand)
+        stmt.close()
+      }
+
+      connectionTL set connection
+      try {
+        val result = doWork
+        connection.commit()
+        result
+      } catch {
+        case e: SQLException => {
+          connection.rollback()
+          throw e
+        }
+      } finally {
+        connection setAutoCommit autoCommit
+        connection.close()
+        connectionTL.remove()
+      }
     }
   }
 
@@ -90,27 +107,26 @@ class JdbcCrudStorage(
     converters = converters
   )
 
-  def close = cpds.close()
-
-
   def create[T <: Entity](obj: T) {
-    val data = write(obj, writeParams)
+    inTransaction {
+      val data = write(obj, writeParams)
 
-    val tableName = getTableName(obj)
+      val tableName = getTableName(obj)
 
-    val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
+      val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
 
-    val stmt = connection.prepareStatement(sql)
+      val stmt = getConnectionBla.prepareStatement(sql)
 
-    params.zipWithIndex.foreach(kv => {
-      val value = kv._1
-      val index = kv._2 + 1
-      JdbcCrudStorage.setParameter(stmt, index, value)
-    })
+      params.zipWithIndex.foreach(kv => {
+        val value = kv._1
+        val index = kv._2 + 1
+        JdbcCrudStorage.setParameter(stmt, index, value)
+      })
 
-    executeStatement(sql, stmt.execute())
+      executeStatement(sql, stmt.execute())
 
-    stmt.close()
+      stmt.close()
+    }
   }
 
   //  def create[T <: Entity with Id](entity: T): T = {
@@ -140,65 +156,69 @@ class JdbcCrudStorage(
   //  }
 
   def insert[T <: Entity](obj: T) {
-    val (autoIncFields, notAutoIncFields) = obj.fields.partition({
-      case field: obj.SimpleField[_, _, _] if field.isAutoInc => true
-      case _ => false
-    })
+    inTransaction {
+      val (autoIncFields, notAutoIncFields) = obj.fields.partition({
+        case field: obj.SimpleField[_, _, _] if field.isAutoInc => true
+        case _ => false
+      })
 
-    val data = write.writeObj(obj, notAutoIncFields, DefaultWriteParams.writer.create, writeParams)
+      val data = write.writeObj(obj, notAutoIncFields, DefaultWriteParams.writer.create, writeParams)
 
-    val tableName = getTableName(obj)
+      val tableName = getTableName(obj)
 
-    val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
+      val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
 
-    val stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+      val stmt = getConnectionBla.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
 
-    params.zipWithIndex.foreach(kv => {
-      val value = kv._1
-      val index = kv._2 + 1
-      JdbcCrudStorage.setParameter(stmt, index, value)
-    })
+      params.zipWithIndex.foreach(kv => {
+        val value = kv._1
+        val index = kv._2 + 1
+        JdbcCrudStorage.setParameter(stmt, index, value)
+      })
 
-    executeStatement(sql, stmt.execute())
+      executeStatement(sql, stmt.execute())
 
-    autoIncFields.length match {
-      case 0 =>
-      case 1 => {
-        // get the auto-generated id
-        val rs = stmt.getGeneratedKeys
-        rs.next()
-        val value = ResultSetReader.get(rs, rs.getMetaData.getColumnName(1)).get
-        autoIncFields(0).asInstanceOf[Entity#Field[Any]] := value
-        rs.close()
+      autoIncFields.length match {
+        case 0 =>
+        case 1 => {
+          // get the auto-generated id
+          val rs = stmt.getGeneratedKeys
+          rs.next()
+          val value = ResultSetReader.get(rs, rs.getMetaData.getColumnName(1)).get
+          autoIncFields(0).asInstanceOf[Entity#Field[Any]] := value
+          rs.close()
+        }
+        case _ => throw new Exception("more than 1 auto inc column not supported")
       }
-      case _ => throw new Exception("more than 1 auto inc column not supported")
-    }
 
-    stmt.close()
+      stmt.close()
+    }
   }
 
   def insert[T <: Entity](xs: Traversable[T]) {
-    xs.headOption match {
-      case Some(head) => {
-        val data = xs.map(x => write(x, writeParams))
+    inTransaction {
+      xs.headOption match {
+        case Some(head) => {
+          val data = xs.map(x => write(x, writeParams))
 
-        val tableName = getTableName(head)
+          val tableName = getTableName(head)
 
-        val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
+          val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
 
-        val stmt = connection.prepareStatement(sql)
+          val stmt = getConnectionBla.prepareStatement(sql)
 
-        params.zipWithIndex.foreach(kv => {
-          val value = kv._1
-          val index = kv._2 + 1
-          JdbcCrudStorage.setParameter(stmt, index, value)
-        })
+          params.zipWithIndex.foreach(kv => {
+            val value = kv._1
+            val index = kv._2 + 1
+            JdbcCrudStorage.setParameter(stmt, index, value)
+          })
 
-        executeStatement(sql, stmt.execute())
+          executeStatement(sql, stmt.execute())
 
-        stmt.close()
+          stmt.close()
+        }
+        case None =>
       }
-      case None =>
     }
   }
 
@@ -230,27 +250,31 @@ class JdbcCrudStorage(
 //    result
   }
 
-  def update[T <: Entity with Id](entity: T) = new { def set(f: (T) => Unit) {
-    val data1 = entity.write(writeParams)
-    f(entity)
-    val data2 = entity.write(writeParams)
-    val data = data2.filterNot {
-      case (k, v) => data1.contains(k) && data1(k) == v
+  def update[T <: Entity with Id](entity: T) = new {
+    def set(f: (T) => Unit) {
+      inTransaction {
+        val data1 = entity.write(writeParams)
+        f(entity)
+        val data2 = entity.write(writeParams)
+        val data = data2.filterNot {
+          case (k, v) => data1.contains(k) && data1(k) == v
+        }
+        val idFieldName = ??? //ResultSetParams.getFieldName(entity.id)
+        val sql = s"update ${entity.className} set ${data.map(x => x._1 + " = ?").mkString(", ")} where $idFieldName = ?"
+        val stmt = getConnectionBla.prepareStatement(sql)
+        data.values.zipWithIndex.foreach(kv => {
+          val value = kv._1
+          val index = kv._2 + 1
+          JdbcCrudStorage.setParameter(stmt, index, value)
+        })
+        JdbcCrudStorage.setParameter(stmt, data.size + 1, entity.id())
+
+        executeStatement(sql, stmt)
+
+        stmt.close()
+      }
     }
-    val idFieldName = ??? //ResultSetParams.getFieldName(entity.id)
-    val sql = s"update ${entity.className} set ${data.map(x => x._1 + " = ?").mkString(", ")} where $idFieldName = ?"
-    val stmt = connection.prepareStatement(sql)
-    data.values.zipWithIndex.foreach(kv => {
-      val value = kv._1
-      val index = kv._2 + 1
-      JdbcCrudStorage.setParameter(stmt, index, value)
-    })
-    JdbcCrudStorage.setParameter(stmt, data.size + 1, entity.id())
-
-    executeStatement(sql, stmt)
-
-    stmt.close()
-  }}
+  }
 
   def getTableName[T <: Entity](obj: T): String = {
     val s = obj match {
@@ -276,67 +300,75 @@ class JdbcCrudStorage(
   }
 
   def selectOne[T <: Obj, U <: Uniqueness](query: Query[T, U]): Option[T] = {
-    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
-    val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
-    val stmt = connection.prepareStatement(sql)
-    values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
+    inTransaction {
+      val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
+      val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
+      val stmt = getConnectionBla.prepareStatement(sql)
+      values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
-    val rs = executeStatement(sql, stmt.executeQuery())
+      val rs = executeStatement(sql, stmt.executeQuery())
 
-    val result = if (rs.next()) {
-      val obj = xtract.read.readAny(query.klass, rs, readParams)
-      if (rs.next()) throw new RuntimeException("expected unique result")
-      Some(obj)
-    } else {
-      None
+      val result = if (rs.next()) {
+        val obj = xtract.read.readAny(query.klass, rs, readParams)
+        if (rs.next()) throw new RuntimeException("expected unique result")
+        Some(obj)
+      } else {
+        None
+      }
+
+      rs.close()
+      stmt.close()
+
+      result
     }
-
-    rs.close()
-    stmt.close()
-
-    result
   }
 
   def selectMany[T <: Obj, U <: Uniqueness](query: Query[T, U])(implicit dummy: DummyImplicit): List[T] = {
-    val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
-    val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
-    val stmt = connection.prepareStatement(sql)
-    values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
+    inTransaction {
+      val (where, values) = JdbcCrudStorage.makeWhere(query.clauses, fnc, escape)
+      val sql = s"select * from ${escape(getTableName(query.klass))} ${where}"
+      val stmt = getConnectionBla.prepareStatement(sql)
+      values.zipWithIndex.map(x => JdbcCrudStorage.setParameter(stmt, x._2 + 1, x._1))
 
-    val rs = executeStatement(sql, stmt.executeQuery())
+      val rs = executeStatement(sql, stmt.executeQuery())
 
-    val result = ArrayBuffer[T]()
+      val result = ArrayBuffer[T]()
 
-    while (rs.next) {
-      val obj = xtract.read.readAny(query.klass, rs, readParams)
-      result += obj
+      while (rs.next) {
+        val obj = xtract.read.readAny(query.klass, rs, readParams)
+        result += obj
+      }
+
+      if (rs.next()) throw new RuntimeException("expected unique result")
+
+      rs.close()
+      stmt.close()
+
+      result.toList
     }
-
-    if (rs.next()) throw new RuntimeException("expected unique result")
-
-    rs.close()
-    stmt.close()
-
-    result.toList
   }
 
   def delete[T <: Entity: Manifest]() {
-    val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]
-    val sql = s"""delete from ${entity.className}"""
-    val stmt = connection.createStatement()
+    inTransaction {
+      val entity = manifest.runtimeClass.newInstance().asInstanceOf[T]
+      val sql = s"""delete from ${entity.className}"""
+      val stmt = getConnectionBla.createStatement()
 
-    executeStatement(sql, stmt.executeUpdate(sql))
+      executeStatement(sql, stmt.executeUpdate(sql))
 
-    stmt.close
+      stmt.close
+    }
   }
 
 
   def delete[T <: Entity : Manifest, U <: Uniqueness](where: Query[T, U]) {
-    val entity = where.meta.getClass.newInstance().asInstanceOf[T]
-    val sql = s"delete from ${entity.className} where ${???}"
-    val stmt = connection.createStatement()
-    executeStatement(sql, stmt.executeUpdate(sql))
-    stmt.close()
+    inTransaction {
+      val entity = where.meta.getClass.newInstance().asInstanceOf[T]
+      val sql = s"delete from ${entity.className} where ${???}"
+      val stmt = getConnectionBla.createStatement()
+      executeStatement(sql, stmt.executeUpdate(sql))
+      stmt.close()
+    }
   }
 
   private def executeStatement[T](sql: String, f: => T): T = {
@@ -376,28 +408,10 @@ object JdbcCrudStorage {
   def makeWhere(clauses: List[QueryClause[_]], fnc: FieldNamingConvention, escape: String => String): (String, List[Any]) = {
     val values = ArrayBuffer[Any]()
     def getFieldName(field: Entity#Field[_]) = escape(getFQName(field, fnc))
-    val sql = "where " + clauses.map(_ match {
-//      case IsClause(field, klass) => {
-//        values += klass.newInstance().typeDiscriminator
-//        s"""${field.qname + "_type"} = ?"""
-//      }
-      case SimpleFieldEqClause(field, value) => {
-        values += value
-        s"""${getFieldName(field)} = ?"""
-      }
-      case SimpleFieldInClause(field, xs) => {
-        values ++= xs
-        // we can't do xs.map(x => "?"), cause xs may be set
-        s"""${getFieldName(field)} in (${Array.fill(xs.size)("?").mkString(", ")})"""
-      }
-//      case LinkFieldEqClause(field, value) => {
-//        values += value
-//        s"""${field.fqname} = ?"""
-//      }
-//      case CustomFieldEqClause(field, value) => {
-//        values += field.serialize(value)
-//        s"""${field.fqname} = ?"""
-//      }
+    val sql = "where " + clauses.map(clause => {
+      val (sql, xs) = clauseToSql(clause, fnc, escape)
+      values ++= xs
+      sql
     }).mkString(" and ")
 
     if (clauses.nonEmpty) {
@@ -405,7 +419,36 @@ object JdbcCrudStorage {
     } else {
       ("", values.toList)
     }
+  }
 
+  def clauseToSql(clause: QueryClause[_], fnc: FieldNamingConvention, escape: String => String): (String, Seq[Any]) = {
+    def getFieldName(field: Entity#Field[_]) = escape(getFQName(field, fnc))
+    clause match {
+      //      case IsClause(field, klass) => {
+      //        values += klass.newInstance().typeDiscriminator
+      //        s"""${field.qname + "_type"} = ?"""
+      //      }
+      case SimpleFieldEqClause(field, value) => {
+        (s"""${getFieldName(field)} = ?""", List(value))
+      }
+      case SimpleFieldInClause(field, xs) => {
+        // we can't do xs.map(x => "?"), cause xs may be a set
+        val sql = s"""${getFieldName(field)} in (${Array.fill(xs.size)("?").mkString(", ")})"""
+        (sql, xs.toSeq)
+      }
+      case SimpleFieldNotClause(clause) => {
+        val (sql, values) = clauseToSql(clause, fnc, escape)
+        (s"not($sql)", values)
+      }
+      //      case LinkFieldEqClause(field, value) => {
+      //        values += value
+      //        s"""${field.fqname} = ?"""
+      //      }
+      //      case CustomFieldEqClause(field, value) => {
+      //        values += field.serialize(value)
+      //        s"""${field.fqname} = ?"""
+      //      }
+    }
   }
 
 

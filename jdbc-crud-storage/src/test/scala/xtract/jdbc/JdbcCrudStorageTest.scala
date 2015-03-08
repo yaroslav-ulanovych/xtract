@@ -54,7 +54,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         users(1).name() shouldBe "Mary"
       }
     } finally {
-      storage.close
       conn.close
     }
   }
@@ -94,7 +93,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         storage.select(from[User].where(_.name eqs "non existing name")).length shouldBe 0
       }
     } finally {
-      storage.close
       conn.close
     }
   }
@@ -125,7 +123,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         users(1).name() shouldBe "Mary"
       }
     } finally {
-      storage.close
       conn.close
     }
   }
@@ -153,8 +150,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
 
       storage.insert(List(user1, user2))
     }
-
-    storage.close
 
     val rs = stmt.executeQuery("select * from user")
 
@@ -204,7 +199,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         storage.select(from[Session].where(_.id eqs session.id())).isDefined shouldBe true
       }
     } finally {
-      storage.close
       conn.close()
     }
   }
@@ -217,6 +211,7 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     stmt.execute("set schema aaa;")
     stmt.execute("create table user(id int primary key, name varchar);")
     stmt.execute("insert into user values(1, 'John');")
+    stmt.close()
 
     val storage = new JdbcCrudStorage(dbSettings, fnc, Some("AAA"))
     try {
@@ -225,7 +220,6 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         storage.select(from[User]).size shouldBe 1
       }
     } finally {
-      storage.close
       conn.close()
     }
   }
@@ -234,6 +228,28 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
     val dbSettings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
     val storage = new JdbcCrudStorage(dbSettings, fnc, None)
     storage.formatTableName("RecordTagRelation") shouldBe "RECORD_TAG_RELATION"
+  }
+
+  test("select not") {
+    val settings = DbSettings("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID(), "", "")
+    val conn = DriverManager.getConnection(settings.url)
+    val stmt = conn.createStatement()
+    stmt.execute("create table user(id int primary key, name varchar);")
+    stmt.execute("insert into user values(1, 'John');")
+    stmt.execute("insert into user values(2, 'Mary');")
+    stmt.close()
+
+    try {
+      val storage = new JdbcCrudStorage(settings, fnc)
+      import xtract.query.QueryDsl._
+      storage.inTransaction {
+        storage.select(from[User].where(_.id.not(_ eqs 1))).size shouldBe 1
+        storage.select(from[User].where(_.id.not(_ eqs 2))).size shouldBe 1
+        storage.select(from[User].where(_.id.not(_ eqs 3))).size shouldBe 2
+      }
+    } finally {
+      conn.close()
+    }
   }
 
 }

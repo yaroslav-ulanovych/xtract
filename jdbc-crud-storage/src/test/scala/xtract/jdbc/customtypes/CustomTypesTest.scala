@@ -44,7 +44,6 @@ class CustomTypesTest extends FunSuite with Matchers {
         notes(0).ctime() shouldBe time
       }
     } finally {
-      storage.close
       conn.close()
     }
   }

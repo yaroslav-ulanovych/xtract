@@ -1,11 +1,5 @@
 package xtract
 
-class InstantiationException(msg: String) extends Exception(msg)
-
-object instantiationException {
-  def apply(msg: String) = throw new InstantiationException(msg)
-}
-
 case class MissingFieldException(
   klass: Class[_],
   field: String,
