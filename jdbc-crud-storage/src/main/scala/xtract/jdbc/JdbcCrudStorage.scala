@@ -86,8 +86,8 @@ class JdbcCrudStorage(
   def getReader = ResultSetReader
 
   val writeParams = WriteParams(
-    writer = MapWriter,
-    reader = MapReader,
+    writer = ArrayBufferWriter,
+    reader = ArrayBufferReader,
     diver = diver,
     fnc = fnc,
     thns = SamePackageTypeHintNamingStrategy,
@@ -106,28 +106,6 @@ class JdbcCrudStorage(
     fnc = fnc,
     converters = converters
   )
-
-  def create[T <: Entity](obj: T) {
-    inTransaction {
-      val data = write(obj, writeParams)
-
-      val tableName = getTableName(obj)
-
-      val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
-
-      val stmt = getConnectionBla.prepareStatement(sql)
-
-      params.zipWithIndex.foreach(kv => {
-        val value = kv._1
-        val index = kv._2 + 1
-        JdbcCrudStorage.setParameter(stmt, index, value)
-      })
-
-      executeStatement(sql, stmt.execute())
-
-      stmt.close()
-    }
-  }
 
   //  def create[T <: Entity with Id](entity: T): T = {
   //    val data = entity.write(writeParams)
@@ -162,11 +140,11 @@ class JdbcCrudStorage(
         case _ => false
       })
 
-      val data = write.writeObj(obj, notAutoIncFields, DefaultWriteParams.writer.create, writeParams)
+      val data = write.writeObj(obj, notAutoIncFields, writeParams.writer.create, writeParams)
 
       val tableName = getTableName(obj)
 
-      val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, List(data), escape)
+      val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, data.toList, escape)
 
       val stmt = getConnectionBla.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
 
@@ -203,7 +181,7 @@ class JdbcCrudStorage(
 
           val tableName = getTableName(head)
 
-          val (sql, params) = JdbcCrudStorage.makeInsertQuery(tableName, data, escape)
+          val (sql, params) = JdbcCrudStorage.makeBulkInsertQuery(tableName, data, escape)
 
           val stmt = getConnectionBla.prepareStatement(sql)
 
@@ -253,9 +231,9 @@ class JdbcCrudStorage(
   def update[T <: Entity with Id](entity: T) = new {
     def set(f: (T) => Unit) {
       inTransaction {
-        val data1 = entity.write(writeParams)
+        val data1 = entity.write(writeParams).toMap
         f(entity)
-        val data2 = entity.write(writeParams)
+        val data2 = entity.write(writeParams).toMap
         val data = data2.filterNot {
           case (k, v) => data1.contains(k) && data1(k) == v
         }
@@ -394,12 +372,29 @@ object JdbcCrudStorage {
 //    s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values(${data.keys.toSeq.map(x => "?").mkString(", ")})"
 //  }
 
-  def makeInsertQuery(tableName: String, data: Traversable[MutableHashMap[String, Any]], escape: String => String): (String, Seq[Any]) = {
+  def makeInsertQuery(table: String, data: Seq[(String, Any)], escape: String => String): (String, Seq[Any]) = {
+    makeInsertQuery(escape(table), data.map({
+      case (column, value) => (escape(column), value)}
+    ))
+  }
+
+  def makeInsertQuery(table: String, data: Seq[(String, Any)]): (String, Seq[Any]) = {
+    val columns = data.map(_._1).mkString(", ")
+
+    val values = data.map(_ => "? ").mkString(", ")
+
+    val sql = s"insert into $table($columns) values ($values)"
+
+    (sql, data.map(_._2))
+  }
+
+  def makeBulkInsertQuery(tableName: String, data: Traversable[Seq[(String, Any)]], escape: String => String): (String, Seq[Any]) = {
     val buffer = ArrayBuffer[Any]()
     val tableNameEscaped = escape(tableName)
-    val fieldNamesEscaped = data.head.keys.map(escape)
+    val fieldNamesEscaped = data.head.map(_._1).map(escape)
 
-    val sql = s"insert into ${tableNameEscaped}(${fieldNamesEscaped.mkString(", ")}) values ${data.map(data => s"(${data.map({case (k, v) => buffer += v; "?"}).mkString(", ")})").mkString(", ")}"
+    val columnList = fieldNamesEscaped.mkString(", ")
+    val sql = s"insert into ${tableNameEscaped}(${columnList}) values ${data.map(data => s"(${data.map({case (k, v) => buffer += v; "?"}).mkString(", ")})").mkString(", ")}"
     (sql, buffer)
   }
 
@@ -468,12 +463,4 @@ object JdbcCrudStorage {
   }
 
   val diver = FlatDiver("__")
-
-//  val writeParams = WriteParams(
-//    writer = MapWriter,
-//    reader = MapReader,
-//    fnc = fnc,
-//    thns = SamePackageTypeHintNamingStrategy,
-//    layout = layout
-//  )
 }

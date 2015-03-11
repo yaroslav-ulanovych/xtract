@@ -187,14 +187,14 @@ class JdbcCrudStorageTest extends FunSuite with Matchers with GivenWhenThen {
         user.id := 1
         user.name := "John"
 
-        storage.create(user)
+        storage.insert(user)
 
         val session = new Session
 
         session.id := UUID.randomUUID().toString
         session.userId := user.id()
 
-        storage.create(session)
+        storage.insert(session)
 
         storage.select(from[Session].where(_.id eqs session.id())).isDefined shouldBe true
       }

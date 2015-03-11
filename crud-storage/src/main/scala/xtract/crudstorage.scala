@@ -5,8 +5,6 @@ import xtract.query.{QueryResult, Query}
 import scala.reflect.ClassTag
 
 trait CrudStorage {
-  def create[T <: Entity](obj: T)
-
   def insert[T <: Entity](obj: T)
   def insert[T <: Entity](xs: Traversable[T])
 //  def create[T <: Obj with Id](obj: T): T
